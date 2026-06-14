@@ -5,7 +5,7 @@ version 2
 :: map/
 :: sfx/
 :: main.lua
---[[pod_format="raw",created="2026-06-14 04:21:41",modified="2026-06-14 07:48:44",revision=62,xstickers={}]]
+--[[pod_format="raw",created="2026-06-14 04:21:41",modified="2026-06-14 08:10:35",revision=86,xstickers={}]]
 -- a2font-gen   by Micah Cowan
 --
 -- Generate (and display) an APPLE ][ Picotron font
@@ -15,14 +15,6 @@ img =
 --[[pod_type="image"]]unpod("b64:bHo0AK4CAABKBAAA8RVweHUAQyCAIATwcy8ZUA5APkAuMD4wTiBOMD4gDiAOMC5wDiACABNgCAAwMC4wBgAwDgAOCAAGAgARYAIA9AMgDkAOgA4gDhAOMA5gHgAeIA4CADMADgAKAAZOAAo0AFIADkAOYCgAIR4QIABBIA4ALggAIj4wMgAgPjAKABFOMAAkHlAuAAMGAAACAEwAHjBOYgA7EB4gZAAAEAACFgAEKAAIAgAClAACNAA0QA4gzgAHKAACHAEUICwBIw5wLAERQBwBEyCCAAASACHwdCUAJEAulwALAgCZTiBOoE7wAw4gAgAEeAAMmAAA9AArkB4vABmALQARMOMA8wAADmAOMB5gDoAeQA7APjCtABdQKgATAAsBgGAOQB5wDnAeOAAXsFEBAFYACi4AACIAEFACAEEegA5gPQExoA5gGwEABAAEtQAAJgATMPkBAMcAUGAekA5QswAzcB4AFAE3UA5QiwAxQA5ABQFjoE7wfQ5QvgBxUA5AHmAOcKAARWAO8CcZACJAPhwCAOEAMVAOgG8AABoAQfARDsAlAABoATEADnAZAFFgDkAOoHEAYPAQDtAO0CoAAH4AQQ7QDqB4AJGgTsAO4A7ATkDfABFQTAAToDMAcGAO8AYO8A8aACE_MC4CNxAOwHIAcWAO8AUO8AFWABBQQQFBHgAOwK8AcdAO8AAO8H7oAKAwTlAOME5ALiBOHgIg8AcjAAJBAyEeQNMBc0AeMA5wDpANARAgVQAT4BwBIBAetAIAKgEChAAVkHIDEUD_ACBQTqYABZAAMB5QHosBQHAOID56AHBAPvADDvAD6ABgHhAOQA5QZQAjTmAlAhJQfQAFSAACkAEBsQFFDiAOUGoAAioAADIBUGAO4A7Q4gKgTjAuYA5ALkAuQMsAoC7QDoAOwA5wDiA=")
 
 font = userdata("u8", 2048)
-
---[[
-window{
-	width=8 * 16 + 16,
-	height=8 * 16,
-	title = "charmap",
-}
---]]
 
 -- !! Generate the font data !!
 font:set(0,7) -- char width
@@ -64,42 +56,50 @@ end
 font:poke(0x5600) -- set as the alternate font
 
 cls()
+hex="0123456789ABCDEF"
 -- display font starting from codepoint 16
 -- (preceding codepoints are not displayable)
+print("      \014" .. hex .. "\015        " .. "      " .. hex)
+print""
 for i=16,240,16 do
-	s="\014"
+	s = ""
 	for j=i, i+15 do
 		s ..= chr(j)
 	end
 	local y=(i//16)*8
-	print(s)
+	print(hex[i // 16] .. "_    \014" .. s .. "\015        "
+		.. hex[i // 16] .. "_    " .. s)
 end
+print""
 
 set_clipboard(pod(font, 7, {pod_type="font"}))
 mkdir("/appdata/shared/fonts")
 local path="/appdata/shared/fonts/a2.font"
 store(path, font)
-color(7)
-print("\014font data has been copied to clipboard")
-print("\014and saved to " .. path)
+
+print("Font data has been saved to " .. path)
+print("    TRY! > fetch(\"" .. path .. "\"):poke(0x4000)")
+print""
+print"NOTE: not possible to type lowercase,"
+print"      or following punctuation: `{|}~"
 :: .info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:48:44",runtime=27,workspaces={{location="main.lua#66,19",workspace_index=1}}]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 08:10:36",runtime=27,workspaces={{location="main.lua#73,52",workspace_index=1}}]]
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:48:44"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 08:10:36"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:48:44"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 08:10:36"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:48:44"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 08:10:36"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
