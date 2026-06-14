@@ -5,7 +5,7 @@ version 2
 :: map/
 :: sfx/
 :: main.lua
---[[pod_format="raw",created="2026-06-14 04:21:41",modified="2026-06-14 08:10:35",revision=86,xstickers={}]]
+--[[pod_format="raw",created="2026-06-14 04:21:41",modified="2026-06-14 09:25:38",revision=94,xstickers={}]]
 -- a2font-gen   by Micah Cowan
 --
 -- Generate (and display) an APPLE ][ Picotron font
@@ -54,38 +54,41 @@ for cp=16,255 do
 end
 
 font:poke(0x5600) -- set as the alternate font
-
-cls()
-hex="0123456789ABCDEF"
--- display font starting from codepoint 16
--- (preceding codepoints are not displayable)
-print("      \014" .. hex .. "\015        " .. "      " .. hex)
-print""
-for i=16,240,16 do
-	s = ""
-	for j=i, i+15 do
-		s ..= chr(j)
-	end
-	local y=(i//16)*8
-	print(hex[i // 16] .. "_    \014" .. s .. "\015        "
-		.. hex[i // 16] .. "_    " .. s)
-end
-print""
-
-set_clipboard(pod(font, 7, {pod_type="font"}))
+	
+--set_clipboard(pod(font, 7, {pod_type="font"}))
 mkdir("/appdata/shared/fonts")
 local path="/appdata/shared/fonts/a2.font"
 store(path, font)
 
-print("Font data has been saved to " .. path)
-print("    TRY! > fetch(\"" .. path .. "\"):poke(0x4000)")
-print""
-print"NOTE: not possible to type lowercase,"
-print"      or following punctuation: `{|}~"
+function _draw()
+	cls()
+	hex="0123456789ABCDEF"
+	-- display font starting from codepoint 16
+	-- (preceding codepoints are not displayable)
+	print("      \014" .. hex .. "\015        " .. "      " .. hex)
+	print""
+	for i=16,240,16 do
+		s = ""
+		for j=i, i+15 do
+			s ..= chr(j)
+		end
+		local y=(i//16)*8
+		print(hex[i // 16] .. "_    \014" .. s .. "\015        "
+			.. hex[i // 16] .. "_    " .. s)
+	end
+	print""
+	
+	print("Font data has been saved to " .. path)
+	print("    TRY! > fetch(\"" .. path .. "\"):poke(0x4000)")
+	print""
+	print"NOTE: not possible to type lowercase,"
+	print"      or following punctuation: `{|}~"
+	print"(type ESC to exit)"
+end
 :: .info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 08:25:52",runtime=27,workspaces={{location="main.lua#73,52",workspace_index=1}}]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 09:25:38",runtime=27,workspaces={{location="main.lua#53,18",workspace_index=1}}]]
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 08:25:52"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 09:25:38"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
@@ -454,14 +457,14 @@ NcI7NcI7NcA7NTs1wTs1OzXCOzXCOzXAOzU7NcM7NcM-NcUdwzX9-f39-f3tOzXCOzXDO8E1OzXB
 OzU7NcM7wTXAO8E1OzXEO8A1wD81xh3DNf39-f39-f3nHcM1-f39-f39-f39-f39-f39-f39-f39
 -f39-f39-f35AAAAAAAAAAE=
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 08:25:52"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 09:25:38"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 08:25:52"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 09:25:38"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
