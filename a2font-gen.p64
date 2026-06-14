@@ -85,8 +85,12 @@ function _draw()
 		end
 		
 		set_clipboard(pod(font, 7, {pod_type="font"}))
+		mkdir("/appdata/shared/fonts")
+		local path="/appdata/shared/fonts/a2.font"
+		store(path, font)
 		color(7)
-		print("\014FONT HAS BEEN COPIED TO CLIPBOARD")
+		print("\014font data has been copied to clipboard")
+		print("\014and saved to " .. path)
 	end
 end
 :: .info.pod
