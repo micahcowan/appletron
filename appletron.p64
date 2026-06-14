@@ -5,7 +5,7 @@ version 2
 :: map/
 :: sfx/
 :: main.lua
---[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-13 22:21:19",revision=81,xstickers={}]]
+--[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-14 23:55:49",revision=92,xstickers={}]]
 --include "cpu6502.lua"
 
 cycles_per_frame = 17292
@@ -14,24 +14,7 @@ vblank_cycles = 70 * cycles_per_line
 
 function _init()
 	--local cpu = createCpu6502()
-	
-	-- VBL is 4550 cycles
-	-- HBL is 25 cycles
-	-- 262 HBLs for every one VBL (frame) (only 192 of which are displayed)
-	--   (the remaining 70 must be the ones for VBL)
-	-- After HBL, 7 pixels are sent per cycle (one row of a character's bitmap)
-	-- a cycle is .98us
-	-- since 40 characters are displayed in a line, that's 40 cycles.
-	--   Plus 25 cycles for HBL. The final (65th) cycle is double-long (1.96us)
-	-- This means each line takes 66 cycles. 66 * 262 lines = 17,292 cycles per frame
-	-- 17,292 cycles * 0.98us = 16956.6us, so 59.01042 frames in a second
-	
 	--[[
-		For our purposes, we'll round that up to 60 frames so as to fit
-		Picotron's framerate. We'll ensure that 17,292 cycles occur, both
-		in CPU and in video generation, alternating each, so that the CPU
-		can properly affect the frame-in-progress
-	]]
 	window{
 		width = 280,
 		height = 192,
@@ -42,14 +25,10 @@ function _init()
 	video = createVideo(bus)
 	
 	palt(0) -- no transparent pixels
+	fetch("a2.font"):poke(0x4000)
 end
 
 function _update()
-	for f=1,cycles_per_frame do
-		video:cycle()
-	end
-	assert(video:check(), "Video framegen out of sync! cycles = "
-			 .. video._cycle)
 end
 
 function _draw()
@@ -60,7 +39,7 @@ end
 function createBus()
 	local bus = {
 		_mem = {},
-		get = function(self, addr)
+		peek = function(self, addr)
 			return self._mem[addr] or 0
 		end
 	}
@@ -71,85 +50,89 @@ function createBus()
 	return bus
 end
 
--- image data corresponding to Apple ][ font ROM
-a2font =
---[[pod_type="image"]]unpod("b64:bHo0AK4CAABKBAAA8RVweHUAQyCAIATwcy8ZUA5APkAuMD4wTiBOMD4gDiAOMC5wDiACABNgCAAwMC4wBgAwDgAOCAAGAgARYAIA9AMgDkAOgA4gDhAOMA5gHgAeIA4CADMADgAKAAZOAAo0AFIADkAOYCgAIR4QIABBIA4ALggAIj4wMgAgPjAKABFOMAAkHlAuAAMGAAACAEwAHjBOYgA7EB4gZAAAEAACFgAEKAAIAgAClAACNAA0QA4gzgAHKAACHAEUICwBIw5wLAERQBwBEyCCAAASACHwdCUAJEAulwALAgCZTiBOoE7wAw4gAgAEeAAMmAAA9AArkB4vABmALQARMOMA8wAADmAOMB5gDoAeQA7APjCtABdQKgATAAsBgGAOQB5wDnAeOAAXsFEBAFYACi4AACIAEFACAEEegA5gPQExoA5gGwEABAAEtQAAJgATMPkBAMcAUGAekA5QswAzcB4AFAE3UA5QiwAxQA5ABQFjoE7wfQ5QvgBxUA5AHmAOcKAARWAO8CcZACJAPhwCAOEAMVAOgG8AABoAQfARDsAlAABoATEADnAZAFFgDkAOoHEAYPAQDtAO0CoAAH4AQQ7QDqB4AJGgTsAO4A7ATkDfABFQTAAToDMAcGAO8AYO8A8aACE_MC4CNxAOwHIAcWAO8AUO8AFWABBQQQFBHgAOwK8AcdAO8AAO8H7oAKAwTlAOME5ALiBOHgIg8AcjAAJBAyEeQNMBc0AeMA5wDpANARAgVQAT4BwBIBAetAIAKgEChAAVkHIDEUD_ACBQTqYABZAAMB5QHosBQHAOID56AHBAPvADDvAD6ABgHhAOQA5QZQAjTmAlAhJQfQAFSAACkAEBsQFFDiAOUGoAAioAADIBUGAO4A7Q4gKgTjAuYA5ALkAuQMsAoC7QDoAOwA5wDiA=")
-
 function createVideo(bus)
 	local video = {
+		-- public data members
+		flashing = false,
 		-- private data members
 		_bus = bus,
-		_buffer = userdata("u8", 280, 192),
-		_cycle = 0,
-		_x = -25 * 7,
-		_y = -70,
 		
 		-- public methods
-		cycle = function(self)
-			if not self:in_blank() then
-				self:_do_buffer()
-			end
-			self._cycle += 1
-			if self._cycle == cycles_per_frame then
-				self._cycle = 0
-				self._x = -25 * 7
-				self._y = -70	-- for vblank
-			elseif self._x ~= 40 * 7 then
-				self._x += 7
-			else
-				self._x = 0
-				self._y += 1
-			end
-		end,
-		check = function(self)
-			return self._cycle == 0
-		end,
 		display = function(self)
-			spr(self._buffer, 0, 0)
-			print(tostr(stat(7)).." \t"..tostr(stat(1)), 80, 80)
+			cls()
+			-- TODO: only draw changed lines
+			-- TODO: update for flashing chars (based on time()?)
+			self.flashing = (time() // 60) % 2 == 1
+			local b = self._bus
+			for i=0,23 do
+				local line=""
+				local addr=video:get_line_addr(i)
+				for j=0,39 do
+					local c = b:peek(addr + j)
+					line ..= self:_vidchar(c)
+				end
+				print(line, 0, i*8, 25)
+			end
 		end,
-		in_blank = function(self)
-			return self._y < 0 or self._x < 0
+		get_line_addr = function(self, lnum)
+			-- Get the memory address to the start of the specified
+			-- line of text
+			-- TODO: emulate Apple ][ VTAB routine, for real addrs
+			-- TODO: respect alternate video buffer
+			return 1024 + 40 * lnum
 		end,
 		
 		-- private methods
-		_do_buffer = function(self)
-			-- get character address for screen pos
-			-- TODO: get *real* address
-			local addr = 1024 + self._x//7 + 40*(self._y//8)
-			local cp = self._bus:get(addr)
-			
-			cp &= 0x3f -- 0 to 63
-			local cpx = (cp & 0xf) * 8
-			local cpy = ((cp & 0x30) >> 4) * 8
-			cpy += (self._y & 0x7)
-			
-			for i=0,6 do
-				local pxl = a2font:get(cpx+i, cpy)
-				self._buffer:set(self._x+i, self._y, pxl)
-			end
+		_vidchar = function(self, c)
+			-- convert an Apple ][ char to the codepoint to use
+			-- in our font
+			local cp = (c + 32) % 64 + 32
+			if c < 64 or (c<128 and self.flashing) then cp |= 128 end
+			return chr(cp)
 		end,
 	}
 	return video
 end
 :: .info.pod
---[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-14 06:56:35"]]
+--[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-14 23:56:23",runtime=27,workspaces={{location="main.lua#20,31",workspace_index=1}}]]
+:: a2.font
+b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
+Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
+Hh8iDx4iAA8cLyIPKg8SDywAEwBACg8SDxcA8AIPIgIPHA8gDyIPHAAPPlgAXwkA8ElPIg8UCAAv
+Ih8qDzYPIgAeDxQIDR4AHg04AA8_DyAPEAgEAg8_AAxGDBACBAgPEA8gEAxPMAwgCA0OgAyASAAI
+AC1AHQwNDB0ACA88Cg8cDygPHggABg8mOgCDDzIPMAAEGgSOAMAoQAgEIgQIAAgPEC9aAPMIAAgP
+Kg8cCAsPKggQGAwYUBgEMAyQCBB2APAOEAsODzIPKg8mDgsACA8MOAsACw4PIA8YBAIMAAwkAHAP
+GA8gDgsACQDBDQ8SDB8QAAwCDx4fFAByOAQCDx4eCykA0QgkAAseCx4LAAseDzw6ALEOIAgACEAI
+ABgEAGwA8AgECAkgDAAMIAQICQ8gCQgEAAsOCRgACHIA8BYqDzoPGgIPPAAIDR4MHgAPHh4FHgUA
+Cw4iDgsABU4FAAwSBRIMBgDwBSIADzwiDzIODzwALgwuAAtICwBPjADwHQ4PEgoGCgMOAFIMAA4P
+Nh8qLgAeDyYPKg8yHgALTgsABR4FIgALLg8qAw8sDQAAKwBBCw4CC90AsAxYAF4LAE4NCAAuoQFE
+DgAeDZ8BEQyqACQCDJwBJwkBmgEPugAAHwW5AAcQB7gAFQe3ABBBtgAvAw_2ACIfAbUADE8BCQgP
+tQAF8hMPfw9jD10PVQ9FD2UPfQ9DD38Pdw9rH10PQR9dD38PYR9dBAACKABgL30PXQ9jGAASTxQA
+lEEffQ9hH30PQQwAwC99D38PQy99D00PXU4AUC9dD0EvSgAwY093OgAjT19CAPIBXQ9tD3UPeQ91
+D20PXQ9-X0QAUF0PSR9VMACSH10PWQ9VD00fPAADdgAAjgABYgAgYy_0ADRtD1MWAARIAAHOAER9
+D2MPaABhQV93D39fDABgT10Paw93lABSH1UPSQ9mABNr8AABDAAgP3cyAJMPXw9vD3cPew-YAPAC
+T3kPQR9-D30Pew93D28PXx8UAEFPD0EvLAGhD12Pfw9Bj39PdzwB8QB-L2tPfx9rD0EPaw9BH2sU
+AJBDD3UPYw9XD2EgAEMPeQ9ZYAC0TQ9PD38Pex91D3vOADAvd08yACJ7L24AAAwAIm8vkAAADABA
+VQ9jD0gBwFUPdx9-H3cPQR93XwgAcHs-fw9Bn38WAAa_ABIfDgFTTQ9VD1kOAUF3D3M-iAEBKAE2
+Xw9n5gABOAAVZzgBAAwAcWsPbQ9BH28eAADoAQQcABFHNgAAeAEVYzoAMHcve1YAABQAAxgAAAgA
+EUMcADJxL3-AAAHcAAGwACQPf6YAAlYBIi9-hgAkL39mAQMgAAKqACJvHwABD64C-zUPSAH-MVBd
+j38PQQ==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 06:56:19"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 23:56:23"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 06:56:19"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 23:56:23"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 06:56:19"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 23:56:23"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
