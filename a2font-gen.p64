@@ -5,9 +5,12 @@ version 2
 :: map/
 :: sfx/
 :: main.lua
---[[pod_format="raw",created="2026-06-14 04:21:41",modified="2026-06-14 06:36:31",revision=53,xstickers={}]]
--- Display all characters in the current font
--- (except control characters)
+--[[pod_format="raw",created="2026-06-14 04:21:41",modified="2026-06-14 07:29:23",revision=60,xstickers={}]]
+-- a2font-gen   by Micah Cowan
+--
+-- Generate (and display) an APPLE ][ Picotron font
+-- from the image below
+-- (image was generated externally from a text ROM dump)
 img =
 --[[pod_type="image"]]unpod("b64:bHo0AK4CAABKBAAA8RVweHUAQyCAIATwcy8ZUA5APkAuMD4wTiBOMD4gDiAOMC5wDiACABNgCAAwMC4wBgAwDgAOCAAGAgARYAIA9AMgDkAOgA4gDhAOMA5gHgAeIA4CADMADgAKAAZOAAo0AFIADkAOYCgAIR4QIABBIA4ALggAIj4wMgAgPjAKABFOMAAkHlAuAAMGAAACAEwAHjBOYgA7EB4gZAAAEAACFgAEKAAIAgAClAACNAA0QA4gzgAHKAACHAEUICwBIw5wLAERQBwBEyCCAAASACHwdCUAJEAulwALAgCZTiBOoE7wAw4gAgAEeAAMmAAA9AArkB4vABmALQARMOMA8wAADmAOMB5gDoAeQA7APjCtABdQKgATAAsBgGAOQB5wDnAeOAAXsFEBAFYACi4AACIAEFACAEEegA5gPQExoA5gGwEABAAEtQAAJgATMPkBAMcAUGAekA5QswAzcB4AFAE3UA5QiwAxQA5ABQFjoE7wfQ5QvgBxUA5AHmAOcKAARWAO8CcZACJAPhwCAOEAMVAOgG8AABoAQfARDsAlAABoATEADnAZAFFgDkAOoHEAYPAQDtAO0CoAAH4AQQ7QDqB4AJGgTsAO4A7ATkDfABFQTAAToDMAcGAO8AYO8A8aACE_MC4CNxAOwHIAcWAO8AUO8AFWABBQQQFBHgAOwK8AcdAO8AAO8H7oAKAwTlAOME5ALiBOHgIg8AcjAAJBAyEeQNMBc0AeMA5wDpANARAgVQAT4BwBIBAetAIAKgEChAAVkHIDEUD_ACBQTqYABZAAMB5QHosBQHAOID56AHBAPvADDvAD6ABgHhAOQA5QZQAjTmAlAhJQfQAFSAACkAEBsQFFDiAOUGoAAioAADIBUGAO4A7Q4gKgTjAuYA5ALkAuQMsAoC7QDoAOwA5wDiA=")
 
@@ -44,17 +47,23 @@ function _init()
 		for y=0,7 do
 			local b=0
 			for x=0,7 do
+				-- get font pixel from image
 				local p = img:get(ix+x, iy+y)
+				-- convert pixel to boolean true/false
 				p = p ~= 0
+				-- reverse the pixels in codepoints >= 128
 				if cp >= 128 then p = not p end
+				-- convert the pixel into most-significant bit of a byte
 				if p then p = 0x80 else p = 0 end
+				-- (font bits are stored in reverse)
 				b = (b >> 1) | p
 			end
-			b >>= 1 -- shift font 1 to the left, to adjust to 7-wide font
+			b >>= 1 -- shift font 1 to the left, to adjust for 7-pixel font width
 			font:set(f+y, b)
 		end
 	end
-	font:poke(0x5600)
+	
+	font:poke(0x5600) -- set as the alternate font
 end
 
 function _update()
@@ -69,6 +78,8 @@ function _draw()
 	if redraw then
 		redraw = false
 		cls()
+		-- display font starting from codepoint 16
+		-- (preceding codepoints are not displayable)
 		for i=16,240,16 do
 			s=""
 			if (alt_charset) s="\014"
@@ -94,23 +105,23 @@ function _draw()
 	end
 end
 :: .info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 04:56:30",runtime=27,workspaces={{location="main.lua#25,8",workspace_index=1}}]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:29:23",runtime=27,workspaces={{location="main.lua#74,48",workspace_index=1}}]]
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 04:56:30"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:29:23"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 04:56:30"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:29:23"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 04:56:30"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:29:23"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
