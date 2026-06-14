@@ -5,7 +5,7 @@ version 2
 :: map/
 :: sfx/
 :: main.lua
---[[pod_format="raw",created="2026-06-14 04:21:41",modified="2026-06-14 07:29:23",revision=60,xstickers={}]]
+--[[pod_format="raw",created="2026-06-14 04:21:41",modified="2026-06-14 07:48:44",revision=62,xstickers={}]]
 -- a2font-gen   by Micah Cowan
 --
 -- Generate (and display) an APPLE ][ Picotron font
@@ -16,112 +16,90 @@ img =
 
 font = userdata("u8", 2048)
 
-function _init()
-	--[[
-	window{
-		width=8 * 16 + 16,
-		height=8 * 16,
-		title = "charmap",
-	}
-	--]]
-	redraw = true
-	alt_charset = true
-	lines = false
-	
-	font:set(0,7) -- char width
-	font:set(1,7) -- char width (>=128)
-	font:set(2,8) -- char height
-	-- char-specific adjustments (all -> zero)
-	for i=3,128 do
-	end
-	for cp=16,255 do
-		-- convert ASCII code point, to code point within the a2
-		-- font image
-		local cpi = cp % 64
-		if (cp % 128) >= 96 then cpi -= 32 end
-		-- top-left corner of the char in image
-		local ix = (cpi % 16) * 8
-		local iy = (cpi // 16) * 8
-		-- offset to char in font
-		local f = cp * 8
-		for y=0,7 do
-			local b=0
-			for x=0,7 do
-				-- get font pixel from image
-				local p = img:get(ix+x, iy+y)
-				-- convert pixel to boolean true/false
-				p = p ~= 0
-				-- reverse the pixels in codepoints >= 128
-				if cp >= 128 then p = not p end
-				-- convert the pixel into most-significant bit of a byte
-				if p then p = 0x80 else p = 0 end
-				-- (font bits are stored in reverse)
-				b = (b >> 1) | p
-			end
-			b >>= 1 -- shift font 1 to the left, to adjust for 7-pixel font width
-			font:set(f+y, b)
-		end
-	end
-	
-	font:poke(0x5600) -- set as the alternate font
-end
+--[[
+window{
+	width=8 * 16 + 16,
+	height=8 * 16,
+	title = "charmap",
+}
+--]]
 
-function _update()
-	if btnp(5) then
-		--alt_charset = not alt_charset
-		redraw = true
-		lines = not lines
+-- !! Generate the font data !!
+font:set(0,7) -- char width
+font:set(1,7) -- char width (>=128)
+font:set(2,8) -- char height
+-- char-specific adjustments (all -> zero)
+for i=3,128 do
+	font:set(3,0)
+end
+for cp=16,255 do
+	-- convert ASCII code point, to code point within the a2
+	-- font image
+	local cpi = cp % 64
+	if (cp % 128) >= 96 then cpi -= 32 end
+	-- top-left corner of the char in image
+	local ix = (cpi % 16) * 8
+	local iy = (cpi // 16) * 8
+	-- offset to char in font
+	local f = cp * 8
+	for y=0,7 do
+		local b=0
+		for x=0,7 do
+			-- get font pixel from image
+			local p = img:get(ix+x, iy+y)
+			-- convert pixel to boolean true/false
+			p = p ~= 0
+			-- reverse the pixels in codepoints >= 128
+			if cp >= 128 then p = not p end
+			-- convert the pixel into most-significant bit of a byte
+			if p then p = 0x80 else p = 0 end
+			-- (font bits are stored in reverse)
+			b = (b >> 1) | p
+		end
+		b >>= 1 -- shift font 1 to the left, to adjust for 7-pixel font width
+		font:set(f+y, b)
 	end
 end
 
-function _draw()
-	if redraw then
-		redraw = false
-		cls()
-		-- display font starting from codepoint 16
-		-- (preceding codepoints are not displayable)
-		for i=16,240,16 do
-			s=""
-			if (alt_charset) s="\014"
-			for j=i, i+15 do
-				s ..= chr(j)
-			end
-			local y=(i//16)*8
-			print(s, 0, y)
-		end
-		if lines then
-			for x=0,15*7,7 do
-				line(x,0, x,80, 3)
-			end
-		end
-		
-		set_clipboard(pod(font, 7, {pod_type="font"}))
-		mkdir("/appdata/shared/fonts")
-		local path="/appdata/shared/fonts/a2.font"
-		store(path, font)
-		color(7)
-		print("\014font data has been copied to clipboard")
-		print("\014and saved to " .. path)
+font:poke(0x5600) -- set as the alternate font
+
+cls()
+-- display font starting from codepoint 16
+-- (preceding codepoints are not displayable)
+for i=16,240,16 do
+	s="\014"
+	for j=i, i+15 do
+		s ..= chr(j)
 	end
+	local y=(i//16)*8
+	print(s)
 end
+
+set_clipboard(pod(font, 7, {pod_type="font"}))
+mkdir("/appdata/shared/fonts")
+local path="/appdata/shared/fonts/a2.font"
+store(path, font)
+color(7)
+print("\014font data has been copied to clipboard")
+print("\014and saved to " .. path)
 :: .info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:29:23",runtime=27,workspaces={{location="main.lua#74,48",workspace_index=1}}]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:48:44",runtime=27,workspaces={{location="main.lua#66,19",workspace_index=1}}]]
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:29:23"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:48:44"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:29:23"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:48:44"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:29:23"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 07:48:44"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
