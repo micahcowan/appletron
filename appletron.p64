@@ -94,6 +94,10 @@ function createVideo(bus)
 				end
 				print(line, 0, i*8, 25)
 			end
+			local fr = stat(1)
+			local cpu = stat(7)
+			print(fr, 0, 24 * 8)
+			print(cpu, 0, 25 * 8)
 		end,
 		get_line_addr = function(self, lnum)
 			-- Get the memory address to the start of the specified
