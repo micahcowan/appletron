@@ -5,7 +5,13 @@ version 2
 :: map/
 :: sfx/
 :: main.lua
---[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-15 00:17:51",revision=101,xstickers={}]]
+--[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-15 00:34:00",revision=108,xstickers={}]]
+-- appletron   by Micah Cowan <micah@addictivecode.org>
+--
+-- An emulator of the Apple ][ for Picotron
+-- written in Lua (with Picotron language additions)
+-- https://github.com/micahcowan/appletron
+
 --include "cpu6502.lua"
 
 cycles_per_frame = 17292
