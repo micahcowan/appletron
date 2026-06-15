@@ -5,7 +5,7 @@ version 2
 :: map/
 :: sfx/
 :: main.lua
---[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-15 00:34:00",revision=108,xstickers={}]]
+--[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-15 01:42:36",revision=132,xstickers={}]]
 -- appletron   by Micah Cowan <micah@addictivecode.org>
 --
 -- An emulator of the Apple ][ for Picotron
@@ -95,23 +95,35 @@ function createVideo(bus)
 		flashing = false,
 		-- private data members
 		_bus = bus,
+		_dirty_info = 0,
 		
 		-- public methods
 		display = function(self)
 			--cls()
 			-- TODO: only draw changed lines
 			-- TODO: update for flashing chars (based on time()?) COMPLETE
-			self.flashing = (time() % (2/2.1)) > 1/2.1
-			local b = self._bus
-			for i=0,23 do
-				local line=""
-				local addr=video:get_line_addr(i)
-				for j=0,39 do
-					local c = b:peek(addr + j)
-					line ..= self:_vidchar(c)
-				end
-				print(line, 0, i*8, 25)
+			
+			-- is it time to update flashing characters?
+			local newflash = ((time() % (2/2.1)) > 1/2.1) ~= self.flashing
+			if newflash then
+				self.flashing = not self.flashing -- reverse
+				self:_set_dirty()
 			end
+			
+			if newflash or self:_dirty() then
+				local b = self._bus
+				for i=0,23 do
+					local line=""
+					local addr=video:get_line_addr(i)
+					for j=0,39 do
+						local c = b:peek(addr + j)
+						line ..= self:_vidchar(c)
+					end
+					print(line, 0, i*8, 25)
+				end
+				self:_clear_dirty()
+			end
+			
 			local fr = stat(1)
 			local cpu = stat(7)
 			print(fr, 0, 24 * 8)
@@ -133,11 +145,31 @@ function createVideo(bus)
 			if c < 64 or (c<128 and self.flashing) then cp |= 128 end
 			return chr(cp)
 		end,
+		_clear_dirty = function(self)
+			-- declare that no lines need redrawing
+			self._dirty_info = 0
+		end,
+		_dirty = function(self)
+			-- check if any lines need redrawing
+			return self._dirty_info ~= 0
+		end,
+		_set_dirty = function(self, lnum)
+			-- mark a line as dirty.
+			-- if arg not given, mark all lines as dirty.
+			if type(lnum) == "nil" then
+				self._dirty_info = (1 << 40) - 1
+			elseif type(lnum) == "number" then
+				assert(lnum >= 0, "video:_set_dirty: lnum < 0")
+				assert(lnum < 40, "video:_set_dirty: lnum >= 40: "
+					.. tostr(lnum))
+				self._dirty_info |= (1 << lnum)
+			end
+		end,
 	}
 	return video
 end
 :: .info.pod
---[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-15 00:34:00",runtime=27,workspaces={{location="main.lua#32,16",workspace_index=1}}]]
+--[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-15 01:43:02",runtime=27,workspaces={{location="main.lua#157,36",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -161,21 +193,21 @@ Xw9n5gABOAAVZzgBAAwAcWsPbQ9BH28eAADoAQQcABFHNgAAeAEVYzoAMHcve1YAABQAAxgAAAgA
 EUMcADJxL3-AAAHcAAGwACQPf6YAAlYBIi9-hgAkL39mAQMgAAKqACJvHwABD64C-zUPSAH-MVBd
 j38PQQ==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 00:34:00"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 01:43:02"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 00:34:00"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 01:43:02"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 00:34:00"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 01:43:02"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
