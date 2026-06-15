@@ -5,7 +5,7 @@ version 2
 :: map/
 :: sfx/
 :: main.lua
---[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-14 23:55:49",revision=92,xstickers={}]]
+--[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-15 00:17:51",revision=101,xstickers={}]]
 --include "cpu6502.lua"
 
 cycles_per_frame = 17292
@@ -25,10 +25,20 @@ function _init()
 	video = createVideo(bus)
 	
 	palt(0) -- no transparent pixels
+	poke(0x5f58, 0x11) -- print() uses solid backgorund
 	fetch("a2.font"):poke(0x4000)
+	did_thing = false
 end
 
 function _update()
+	if not did_thng and time() >= 4 then
+		did_thing = true
+		for i=0,255 do
+			local x = i % 16
+			local y = (i // 16) * 40
+			bus:poke(1024 + y + x, i)
+		end
+	end
 end
 
 function _draw()
@@ -41,11 +51,16 @@ function createBus()
 		_mem = {},
 		peek = function(self, addr)
 			return self._mem[addr] or 0
-		end
+		end,
+		poke = function(self, addr, val)
+			assert(type(val) == "number",
+				"Non-numeric type given to bus:peek(): " .. pod(val))
+			self._mem[addr] = val
+		end,
 	}
-	local s = "HELLO"
+	local s = {0xC8, 0xC5, 0xCC, 0xCC, 0xCF}
 	for i=1,#s do
-		bus._mem[1023 + i] = ord(s[i])
+		bus._mem[1023 + i] = s[i]
 	end
 	return bus
 end
@@ -59,10 +74,10 @@ function createVideo(bus)
 		
 		-- public methods
 		display = function(self)
-			cls()
+			--cls()
 			-- TODO: only draw changed lines
-			-- TODO: update for flashing chars (based on time()?)
-			self.flashing = (time() // 60) % 2 == 1
+			-- TODO: update for flashing chars (based on time()?) COMPLETE
+			self.flashing = (time() % 1) > 0.5
 			local b = self._bus
 			for i=0,23 do
 				local line=""
@@ -94,7 +109,7 @@ function createVideo(bus)
 	return video
 end
 :: .info.pod
---[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-14 23:56:23",runtime=27,workspaces={{location="main.lua#20,31",workspace_index=1}}]]
+--[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-15 00:17:51",runtime=27,workspaces={{location="main.lua#88,1",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -118,21 +133,21 @@ Xw9n5gABOAAVZzgBAAwAcWsPbQ9BH28eAADoAQQcABFHNgAAeAEVYzoAMHcve1YAABQAAxgAAAgA
 EUMcADJxL3-AAAHcAAGwACQPf6YAAlYBIi9-hgAkL39mAQMgAAKqACJvHwABD64C-zUPSAH-MVBd
 j38PQQ==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 23:56:23"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 00:17:51"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 23:56:23"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 00:17:51"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-14 23:56:23"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 00:17:51"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
