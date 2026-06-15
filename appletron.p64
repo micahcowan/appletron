@@ -5,7 +5,7 @@ version 2
 :: map/
 :: sfx/
 :: app.lua
---[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-15 07:16:47",revision=16,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-15 07:27:47",revision=18,xstickers={}]]
 -- appletron   by Micah Cowan <micah@addictivecode.org>
 --
 -- An emulator of the Apple ][ for Picotron
@@ -39,7 +39,7 @@ function App.new(class)
 	
 	-- public methods
 	function app.update(self)
-		local step = time() // (1/2.1)
+		local step = time() // (1/4.2)
 		
 		if self.did_thing or step <= self.did_step then
 			-- nothing to do
@@ -166,7 +166,7 @@ function _draw()
 	theApp:draw()
 end
 :: video.lua
---[[pod_format="raw",created="2026-06-15 06:05:43",modified="2026-06-15 06:52:05",revision=9,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 06:05:43",modified="2026-06-15 07:49:51",revision=12,xstickers={}]]
 -- video.lua
 --
 -- Video subsystem. Responsible for drawing the Apple ][ screen
@@ -304,12 +304,16 @@ function Video.new(bus)
 			if type(lnum) ~= "nil" then
 				video:_set_dirty(lnum)
 			end
+			--[[
+			print(tostr(video._dirty_info, 1) .. "  " .. tostr(lnum)
+				.. "     ", 0, 26 * 8)
+			--]]
 		end
 	end)
 	return video
 end
 :: .info.pod
---[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-15 07:16:47",runtime=27,workspaces={{location="main.lua#19,4",workspace_index=1},{location="bus.lua#58,5",workspace_index=1},{location="app.lua#47,25",workspace_index=1},{location="video.lua#29",workspace_index=1}}]]
+--[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-15 07:49:51",runtime=27,workspaces={{location="main.lua#19,4",workspace_index=1},{location="bus.lua#58,5",workspace_index=1},{location="app.lua#34,32",workspace_index=1},{location="video.lua#141,8",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -333,21 +337,21 @@ Xw9n5gABOAAVZzgBAAwAcWsPbQ9BH28eAADoAQQcABFHNgAAeAEVYzoAMHcve1YAABQAAxgAAAgA
 EUMcADJxL3-AAAHcAAGwACQPf6YAAlYBIi9-hgAkL39mAQMgAAKqACJvHwABD64C-zUPSAH-MVBd
 j38PQQ==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 07:16:47"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 07:49:51"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 07:16:47"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 07:49:51"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 07:16:47"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 07:49:51"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
