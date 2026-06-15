@@ -5,7 +5,7 @@ version 2
 :: map/
 :: sfx/
 :: app.lua
---[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-15 06:18:20",revision=3,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-15 06:34:51",revision=7,xstickers={}]]
 -- appletron   by Micah Cowan <micah@addictivecode.org>
 --
 -- An emulator of the Apple ][ for Picotron
@@ -34,8 +34,8 @@ function App.new(class)
 	--]]
 	app = {}
 	
-	app.bus = createBus()
-	app.video = createVideo(app.bus)
+	app.bus = Bus.new()
+	app.video = Video.new(app.bus)
 	
 	-- public methods
 	function app.update(self)
@@ -61,51 +61,56 @@ function App.new(class)
 	return app
 end
 :: bus.lua
---[[pod_format="raw",created="2026-06-15 06:12:09",modified="2026-06-15 06:12:09",revision=0,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 06:12:09",modified="2026-06-15 06:35:25",revision=3,xstickers={}]]
 -- bus.lua
 --
 -- Manages reading/writing from the emulated Apple ]['s
 -- data bus (usually, memory, sometimes soft switches
 -- or peripherals)
 
-function createBus()
+Bus = {}
+
+function Bus.new()
 	local bus = {
 		-- private data members
 		_mem = {},
 		_poke_lsnrs = {}, -- TODO: abstract listening into its own class
-		
-		-- public methods
-		peek = function(self, addr)
-			-- read a value off the Apple ][ bus
-			local val = self._mem[addr]
-			if (type(val) ~= "nil") then
-				return val
-			elseif (addr & 0x02) ~= 0 then
-				return 0
-			else
-				return 0xFF
-			end
-		end,
-		poke = function(self, addr, val)
-			-- write a value to the Apple ][ bus
-			assert(type(val) == "number",
-				"Non-numeric type given to bus:peek(): " .. pod(val))
-			self._mem[addr] = val
-			self:_alert_listeners(self._poke_lsnrs, addr, val)
-		end,
-		listen_poke = function(self, handler)
-			assert(type(handler) == "function",
-				"bus:listen_poke: expected function arg")
-			add(self._poke_lsnrs, handler)
-		end,
-		
-		-- private methods
-		_alert_listeners = function(self, listeners, addr, val)
-			for handler in all(listeners) do
-				handler(addr, val)
-			end
-		end,
 	}
+	
+	-- public methods
+	function bus.peek(self, addr)
+		-- read a value off the Apple ][ bus
+		local val = self._mem[addr]
+		if (type(val) ~= "nil") then
+			return val
+		elseif (addr & 0x02) ~= 0 then
+			return 0
+		else
+			return 0xFF
+		end
+	end
+	
+	function bus.poke(self, addr, val)
+		-- write a value to the Apple ][ bus
+		assert(type(val) == "number",
+			"Non-numeric type given to bus:peek(): " .. pod(val))
+		self._mem[addr] = val
+		self:_alert_listeners(self._poke_lsnrs, addr, val)
+	end
+	
+	function bus.listen_poke(self, handler)
+		assert(type(handler) == "function",
+			"bus:listen_poke: expected function arg")
+		add(self._poke_lsnrs, handler)
+	end
+	
+	-- private methods
+	function bus._alert_listeners(self, listeners, addr, val)
+		for handler in all(listeners) do
+			handler(addr, val)
+		end
+	end
+	
 	-- AppleWin does the following, which improves functionality
 	-- of some programs that depend, unfortunately, on
 	-- certain memory locations not being cleared
@@ -116,10 +121,6 @@ function createBus()
 		bus._mem[z + 0x69] = flr(rnd(256))
 	end
 
-	local s = {0xC8, 0xC5, 0xCC, 0xCC, 0xCF}
-	for i=1,#s do
-		bus._mem[1023 + i] = s[i]
-	end
 	return bus
 end
 :: main.lua
@@ -144,7 +145,7 @@ function _draw()
 	theApp:draw()
 end
 :: video.lua
---[[pod_format="raw",created="2026-06-15 06:05:43",modified="2026-06-15 06:20:11",revision=2,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 06:05:43",modified="2026-06-15 06:35:13",revision=5,xstickers={}]]
 -- video.lua
 --
 -- Video subsystem. Responsible for drawing the Apple ][ screen
@@ -164,7 +165,9 @@ end
 -- still handles the vast majority of situations (basically,
 -- everything outside of clever tech demos)
 
-function createVideo(bus)
+Video = {}
+
+function Video.new(bus)
 	local video = {
 		-- public data members
 		flashing = false,
@@ -172,97 +175,101 @@ function createVideo(bus)
 		_bus = bus,
 		_dirty_info = 0,
 		_base = 1024, -- base address of video memory (1024 or 2048)
-		
-		-- public methods
-		display = function(self)
-			--cls()
-			-- TODO: only draw changed lines
-			-- TODO: update for flashing chars (based on time()?) COMPLETE
-			
-			-- is it time to update flashing characters?
-			local newflash = ((time() % (2/2.1)) > 1/2.1) ~= self.flashing
-			if newflash then
-				self.flashing = not self.flashing -- reverse
-				self:_set_dirty()
-			end
-			
-			if newflash or self:_dirty() then
-				local b = self._bus
-				for i=0,23 do
-					if self:_dirty(i) then
-						local line=""
-						local addr=self:get_line_addr(i)
-						for j=0,39 do
-							local c = b:peek(addr + j)
-							line ..= self:_vidchar(c)
-						end
-						print(line, 0, i*8, 25)
-					end
-				end
-				self:_clear_dirty()
-			end
-			
-			local fr = stat(1)
-			local cpu = stat(7)
-			print(fr, 0, 24 * 8)
-			print(cpu, 0, 25 * 8)
-		end,
-		get_line_addr = function(self, lnum)
-			-- Get the memory address to the start of the specified
-			-- line of text
-			-- TODO: emulate Apple ][ VTAB routine, for real addrs
-			-- TODO: respect alternate video buffer
-			return 1024 + 40 * lnum
-		end,
-		
-		-- private methods
-		_vidchar = function(self, c)
-			-- convert an Apple ][ char to the codepoint to use
-			-- in our font
-			local cp = (c + 32) % 64 + 32
-			if c < 64 or (c<128 and self.flashing) then cp |= 128 end
-			return chr(cp)
-		end,
-		_clear_dirty = function(self)
-			-- declare that no lines need redrawing
-			self._dirty_info = 0
-		end,
-		_dirty = function(self, lnum)
-			-- check if any lines need redrawing,
-			-- or if lnum is given, check a specific line (0-based)
-			if type(lnum) == "nil" then
-				return self._dirty_info ~= 0
-			else
-				return lnum & (1 << lnum)
-			end
-		end,
-		_set_dirty = function(self, lnum)
-			-- mark a line as dirty.
-			-- if arg not given, mark all lines as dirty.
-			if type(lnum) == "nil" then
-				self._dirty_info = (1 << 40) - 1
-			elseif type(lnum) == "number" then
-				assert(lnum >= 0, "video:_set_dirty: lnum < 0")
-				assert(lnum < 40, "video:_set_dirty: lnum >= 40: "
-					.. tostr(lnum))
-				self._dirty_info |= (1 << lnum)
-			end
-		end,
-		_get_lnum_for_addr = function(self, addr)
-			local lnum = nil
-			if addr < self._base or addr >= self._base + 1024
-					or (addr % 128) >= 120 then
-				-- leave lnum nil: not a valid text/lores location
-			else
-				-- group portion of address (which 3rd of screen):
-				local gr  = (addr & 0x7F) // 40
-				-- line number within that group:
-				local sln = (addr & 0x380) >> 7
-				lnum = gr * 8 + sln
-			end
-			return lnum
-		end,
 	}
+	
+	-- public methods
+	function video.display(self)
+		-- TODO: only draw changed lines
+		-- TODO: update for flashing chars (based on time()?) COMPLETE
+		
+		-- is it time to update flashing characters?
+		local newflash = ((time() % (2/2.1)) > 1/2.1) ~= self.flashing
+		if newflash then
+			self.flashing = not self.flashing -- reverse
+			self:_set_dirty()
+		end
+		
+		if newflash or self:_dirty() then
+			local b = self._bus
+			for i=0,23 do
+				if self:_dirty(i) then
+					local line=""
+					local addr=self:get_line_addr(i)
+					for j=0,39 do
+						local c = b:peek(addr + j)
+						line ..= self:_vidchar(c)
+					end
+					print(line, 0, i*8, 25)
+				end
+			end
+			self:_clear_dirty()
+		end
+		
+		local fr = stat(1)
+		local cpu = stat(7)
+		print(fr, 0, 24 * 8)
+		print(cpu, 0, 25 * 8)
+	end
+	
+	function video.get_line_addr(self, lnum)
+		-- Get the memory address to the start of the specified
+		-- line of text
+		-- TODO: emulate Apple ][ VTAB routine, for real addrs
+		-- TODO: respect alternate video buffer
+		return 1024 + 40 * lnum
+	end
+	
+	-- private methods
+	function video._vidchar(self, c)
+		-- convert an Apple ][ char to the codepoint to use
+		-- in our font
+		local cp = (c + 32) % 64 + 32
+		if c < 64 or (c<128 and self.flashing) then cp |= 128 end
+		return chr(cp)
+	end
+	
+	function video._clear_dirty(self)
+		-- declare that no lines need redrawing
+		self._dirty_info = 0
+	end
+	
+	function video._dirty(self, lnum)
+		-- check if any lines need redrawing,
+		-- or if lnum is given, check a specific line (0-based)
+		if type(lnum) == "nil" then
+			return self._dirty_info ~= 0
+		else
+			return lnum & (1 << lnum)
+		end
+	end
+	
+	function video._set_dirty(self, lnum)
+		-- mark a line as dirty.
+		-- if arg not given, mark all lines as dirty.
+		if type(lnum) == "nil" then
+			self._dirty_info = (1 << 40) - 1
+		elseif type(lnum) == "number" then
+			assert(lnum >= 0, "video:_set_dirty: lnum < 0")
+			assert(lnum < 40, "video:_set_dirty: lnum >= 40: "
+				.. tostr(lnum))
+			self._dirty_info |= (1 << lnum)
+		end
+	end
+	
+	function video._get_lnum_for_addr(self, addr)
+		local lnum = nil
+		if addr < self._base or addr >= self._base + 1024
+				or (addr % 128) >= 120 then
+			-- leave lnum nil: not a valid text/lores location
+		else
+			-- group portion of address (which 3rd of screen):
+			local gr  = (addr & 0x7F) // 40
+			-- line number within that group:
+			local sln = (addr & 0x380) >> 7
+			lnum = gr * 8 + sln
+		end
+		return lnum
+	end
 	
 	video:_set_dirty() -- screen needs initial draw
 	
@@ -278,7 +285,7 @@ function createVideo(bus)
 	return video
 end
 :: .info.pod
---[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-15 06:20:11",runtime=27,workspaces={{location="main.lua#19,4",workspace_index=1},{location="app.lua#39,10",workspace_index=1},{location="video.lua#47,22",workspace_index=1},{location="bus.lua#5,19",workspace_index=1}}]]
+--[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-15 06:35:25",runtime=27,workspaces={{location="main.lua#19,4",workspace_index=1},{location="bus.lua#44,31",workspace_index=1},{location="app.lua#29,19",workspace_index=1},{location="video.lua#110,2",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -302,21 +309,21 @@ Xw9n5gABOAAVZzgBAAwAcWsPbQ9BH28eAADoAQQcABFHNgAAeAEVYzoAMHcve1YAABQAAxgAAAgA
 EUMcADJxL3-AAAHcAAGwACQPf6YAAlYBIi9-hgAkL39mAQMgAAKqACJvHwABD64C-zUPSAH-MVBd
 j38PQQ==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 06:20:11"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 06:35:25"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 06:20:11"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 06:35:25"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 06:20:11"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 06:35:25"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
