@@ -5,7 +5,7 @@ version 2
 :: map/
 :: sfx/
 :: main.lua
---[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-15 01:42:36",revision=132,xstickers={}]]
+--[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-15 05:12:57",revision=138,xstickers={}]]
 -- appletron   by Micah Cowan <micah@addictivecode.org>
 --
 -- An emulator of the Apple ][ for Picotron
@@ -55,8 +55,13 @@ end
 
 function createBus()
 	local bus = {
+		-- private data members
 		_mem = {},
+		_poke_lsnrs = {},
+		
+		-- public methods
 		peek = function(self, addr)
+			-- read a value off the Apple ][ bus
 			local val = self._mem[addr]
 			if (type(val) ~= "nil") then
 				return val
@@ -67,9 +72,23 @@ function createBus()
 			end
 		end,
 		poke = function(self, addr, val)
+			-- write a value to the Apple ][ bus
 			assert(type(val) == "number",
 				"Non-numeric type given to bus:peek(): " .. pod(val))
 			self._mem[addr] = val
+			self:_alert_listeners(self._poke_lsnrs, addr, val)
+		end,
+		listen_poke = function(self, handler)
+			assert(type(handler) == "function",
+				"bus:listen_poke: expected function arg")
+			add(self._poke_lsnrs, handler)
+		end,
+		
+		-- private methods
+		_alert_listeners = function(self, listeners, addr, val)
+			for handler in all(listeners) do
+				handler(addr, val)
+			end
 		end,
 	}
 	-- AppleWin does the following, which improves functionality
@@ -96,6 +115,7 @@ function createVideo(bus)
 		-- private data members
 		_bus = bus,
 		_dirty_info = 0,
+		_base = 1024, -- base address of video memory (1024 or 2048)
 		
 		-- public methods
 		display = function(self)
@@ -165,11 +185,35 @@ function createVideo(bus)
 				self._dirty_info |= (1 << lnum)
 			end
 		end,
+		_get_lnum_for_addr = function(self, addr)
+			local lnum = nil
+			if addr < self._base or addr >= self._base + 1024
+					or (addr % 128) >= 120 then
+				-- leave lnum nil: not a valid text/lores location
+			else
+				-- group portion of address (which 3rd of screen):
+				local gr  = (addr & 0x7F) // 40
+				-- line number within that group:
+				local sln = (addr & 0x380) >> 7
+				lnum = gr * 8 + sln
+			end
+			return lnum
+		end,
 	}
+	
+	-- listen for memory changes
+	video._bus:listen_poke(function(addr, val)
+		if addr >= 0x400 and addr < 0xC00 then
+			local lnum = video:_get_lnum_for_addr(addr)
+			if type(lnum) ~= "nil" then
+				video:_set_dirty(lnum)
+			end
+		end
+	end)
 	return video
 end
 :: .info.pod
---[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-15 01:43:02",runtime=27,workspaces={{location="main.lua#157,36",workspace_index=1}}]]
+--[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-15 05:12:57",runtime=27,workspaces={{location="main.lua#197,13",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -193,21 +237,21 @@ Xw9n5gABOAAVZzgBAAwAcWsPbQ9BH28eAADoAQQcABFHNgAAeAEVYzoAMHcve1YAABQAAxgAAAgA
 EUMcADJxL3-AAAHcAAGwACQPf6YAAlYBIi9-hgAkL39mAQMgAAKqACJvHwABD64C-zUPSAH-MVBd
 j38PQQ==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 01:43:02"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 05:12:57"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 01:43:02"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 05:12:57"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 01:43:02"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 05:12:57"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
