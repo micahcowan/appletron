@@ -27,6 +27,7 @@ function _init()
 	}
 	--]]
 	
+	-- TODO: avoid globals, wrap in an App class
 	bus = createBus()
 	video = createVideo(bus)
 	
@@ -56,7 +57,14 @@ function createBus()
 	local bus = {
 		_mem = {},
 		peek = function(self, addr)
-			return self._mem[addr] or 0
+			local val = self._mem[addr]
+			if (type(val) ~= "nil") then
+				return val
+			elseif (addr & 0x02) ~= 0 then
+				return 0
+			else
+				return 0xFF
+			end
 		end,
 		poke = function(self, addr, val)
 			assert(type(val) == "number",
@@ -64,6 +72,16 @@ function createBus()
 			self._mem[addr] = val
 		end,
 	}
+	-- AppleWin does the following, which improves functionality
+	-- of some programs that depend, unfortunately, on
+	-- certain memory locations not being cleared
+	for z=0,65535,512 do
+		bus._mem[z + 0x28] = flr(rnd(256))
+		bus._mem[z + 0x29] = flr(rnd(256))
+		bus._mem[z + 0x68] = flr(rnd(256))
+		bus._mem[z + 0x69] = flr(rnd(256))
+	end
+
 	local s = {0xC8, 0xC5, 0xCC, 0xCC, 0xCF}
 	for i=1,#s do
 		bus._mem[1023 + i] = s[i]
