@@ -5,7 +5,7 @@ version 2
 :: map/
 :: sfx/
 :: app.lua
---[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-15 06:34:51",revision=7,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-15 07:16:47",revision=16,xstickers={}]]
 -- appletron   by Micah Cowan <micah@addictivecode.org>
 --
 -- An emulator of the Apple ][ for Picotron
@@ -39,12 +39,32 @@ function App.new(class)
 	
 	-- public methods
 	function app.update(self)
-		if not self.did_thing and time() >= 3.5 * 1/2.1 then
-			self.did_thing = true
-			for i=0,255 do
-				local x = i % 16
-				local y = (i // 16) * 40
-				self.bus:poke(1024 + y + x, i)
+		local step = time() // (1/2.1)
+		
+		if self.did_thing or step <= self.did_step then
+			-- nothing to do
+		else
+			self.did_step = step
+			
+			if (step < 2) return
+			step -= 2
+			if step < 24 then
+				local base = Video.get_line_addr(1024, step)
+				local c = 0xB0 + step
+				if (step > 9) c = 0xC1 - 10 + step
+				self.bus:poke(base, c)
+			elseif step == 31 then
+				self.did_thing = true
+				local y = 0
+				local base
+				for i=0,255 do
+					local x = i % 16
+					if x == 0 then
+						y = i // 16
+						base = Video.get_line_addr(1024, y)
+					end
+					self.bus:poke(base + x, i)
+				end
 			end
 		end
 	end
@@ -57,11 +77,12 @@ function App.new(class)
 	poke(0x5f58, 0x11) -- print() uses solid background
 	fetch("a2.font"):poke(0x4000)
 	app.did_thing = false
+	app.did_step = 0
 	
 	return app
 end
 :: bus.lua
---[[pod_format="raw",created="2026-06-15 06:12:09",modified="2026-06-15 06:35:25",revision=3,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 06:12:09",modified="2026-06-15 07:00:16",revision=8,xstickers={}]]
 -- bus.lua
 --
 -- Manages reading/writing from the emulated Apple ]['s
@@ -145,7 +166,7 @@ function _draw()
 	theApp:draw()
 end
 :: video.lua
---[[pod_format="raw",created="2026-06-15 06:05:43",modified="2026-06-15 06:35:13",revision=5,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 06:05:43",modified="2026-06-15 06:52:05",revision=9,xstickers={}]]
 -- video.lua
 --
 -- Video subsystem. Responsible for drawing the Apple ][ screen
@@ -167,6 +188,16 @@ end
 
 Video = {}
 
+function Video.get_line_addr(base, lnum)
+	-- Get the memory address to the start of the specified
+	-- line of text
+	-- TODO: emulate Apple ][ VTAB routine, for real addrs
+	-- TODO: respect alternate video buffer
+	local grp = lnum // 8
+	local sln = lnum % 8
+	return base + ((40 * grp) | (sln << 7))
+end
+
 function Video.new(bus)
 	local video = {
 		-- public data members
@@ -179,9 +210,6 @@ function Video.new(bus)
 	
 	-- public methods
 	function video.display(self)
-		-- TODO: only draw changed lines
-		-- TODO: update for flashing chars (based on time()?) COMPLETE
-		
 		-- is it time to update flashing characters?
 		local newflash = ((time() % (2/2.1)) > 1/2.1) ~= self.flashing
 		if newflash then
@@ -212,11 +240,7 @@ function Video.new(bus)
 	end
 	
 	function video.get_line_addr(self, lnum)
-		-- Get the memory address to the start of the specified
-		-- line of text
-		-- TODO: emulate Apple ][ VTAB routine, for real addrs
-		-- TODO: respect alternate video buffer
-		return 1024 + 40 * lnum
+		return Video.get_line_addr(self._base, lnum)
 	end
 	
 	-- private methods
@@ -285,7 +309,7 @@ function Video.new(bus)
 	return video
 end
 :: .info.pod
---[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-15 06:35:25",runtime=27,workspaces={{location="main.lua#19,4",workspace_index=1},{location="bus.lua#44,31",workspace_index=1},{location="app.lua#29,19",workspace_index=1},{location="video.lua#110,2",workspace_index=1}}]]
+--[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-15 07:16:47",runtime=27,workspaces={{location="main.lua#19,4",workspace_index=1},{location="bus.lua#58,5",workspace_index=1},{location="app.lua#47,25",workspace_index=1},{location="video.lua#29",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -309,21 +333,21 @@ Xw9n5gABOAAVZzgBAAwAcWsPbQ9BH28eAADoAQQcABFHNgAAeAEVYzoAMHcve1YAABQAAxgAAAgA
 EUMcADJxL3-AAAHcAAGwACQPf6YAAlYBIi9-hgAkL39mAQMgAAKqACJvHwABD64C-zUPSAH-MVBd
 j38PQQ==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 06:35:25"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 07:16:47"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 06:35:25"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 07:16:47"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 06:35:25"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 07:16:47"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
