@@ -83,7 +83,7 @@ function createVideo(bus)
 			--cls()
 			-- TODO: only draw changed lines
 			-- TODO: update for flashing chars (based on time()?) COMPLETE
-			self.flashing = (time() % 1) > 0.5
+			self.flashing = (time() % (2/2.1)) > 1/2.1
 			local b = self._bus
 			for i=0,23 do
 				local line=""
