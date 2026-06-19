@@ -5,7 +5,7 @@ version 2
 :: map/
 :: sfx/
 :: app.lua
---[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-15 07:27:47",revision=18,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-17 03:39:01",revision=40,xstickers={}]]
 -- appletron   by Micah Cowan <micah@addictivecode.org>
 --
 -- An emulator of the Apple ][ for Picotron
@@ -75,7 +75,7 @@ function App.new(class)
 	return app
 end
 :: bus.lua
---[[pod_format="raw",created="2026-06-15 06:12:09",modified="2026-06-15 07:00:16",revision=8,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 06:12:09",modified="2026-06-19 09:28:26",revision=11,xstickers={}]]
 -- bus.lua
 --
 -- Manages reading/writing from the emulated Apple ]['s
@@ -87,21 +87,14 @@ Bus = {}
 function Bus.new()
 	local bus = {
 		-- private data members
-		_mem = {},
+		_mem = userdata("u8", 65536),
 		_poke_lsnrs = {}, -- TODO: abstract listening into its own class
 	}
 	
 	-- public methods
 	function bus.peek(self, addr)
 		-- read a value off the Apple ][ bus
-		local val = self._mem[addr]
-		if (type(val) ~= "nil") then
-			return val
-		elseif (addr & 0x02) ~= 0 then
-			return 0
-		else
-			return 0xFF
-		end
+		return self._mem[addr]
 	end
 	
 	function bus.poke(self, addr, val)
@@ -123,6 +116,17 @@ function Bus.new()
 		for handler in all(listeners) do
 			handler(addr, val)
 		end
+	end
+	
+	-- clear RAM to a plausible startup pattern
+	for i=0,65535 do
+		local val
+		if (i & 0x02) ~= 0 then
+			val = 0
+		else
+			val = 0xFF
+		end
+		bus._mem[i] = val
 	end
 	
 	-- AppleWin does the following, which improves functionality
@@ -365,21 +369,21 @@ Xw9n5gABOAAVZzgBAAwAcWsPbQ9BH28eAADoAQQcABFHNgAAeAEVYzoAMHcve1YAABQAAxgAAAgA
 EUMcADJxL3-AAAHcAAGwACQPf6YAAlYBIi9-hgAkL39mAQMgAAKqACJvHwABD64C-zUPSAH-MVBd
 j38PQQ==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 07:49:51"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-19 09:28:26"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 07:49:51"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-19 09:28:26"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-15 07:49:51"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-19 09:28:26"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
