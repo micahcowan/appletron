@@ -25,13 +25,6 @@ vblank_cycles = 70 * cycles_per_line
 App = {}
 
 function App.new(class)
-	--local cpu = createCpu6502()
-	--[[
-	window{
-		width = 280,
-		height = 192,
-	}
-	--]]
 	app = {}
 	
 	app.bus = Bus.new()
@@ -145,7 +138,7 @@ function Bus.new()
 	return bus
 end
 :: main.lua
---[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-15 06:09:22",revision=143,xstickers={}]]
+--[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-17 06:47:26",revision=180,xstickers={}]]
 -- appletron   by Micah Cowan <micah@addictivecode.org>
 --
 -- An emulator of the Apple ][ for Picotron
@@ -154,19 +147,56 @@ end
 
 include "app.lua"
 
-function _init()
-	theApp = App:new()
-end
-
-function _update()
-	theApp:update()
-end
-
-function _draw()
-	theApp:draw()
-end
+do
+	-- local function
+	local function setup_keys()
+		on_event("keydown",
+			function(msg)
+				local c = stat(302, msg.scancode)
+				if c == "F1" then
+					window{pauseable = true}
+					--send_message(3, {event = "set_window", attribs = {pauseable = true}}, true)
+					
+					-- unfortunately, the following doesn't work when sandboxed! :(
+					send_message(3, {event = "toggle_pause_menu"})
+					-- ...still, we just toggled pauseable to true, so they can now hit Enter
+					-- afterward, I suppose. Or run us sandboxed.
+				elseif c == "Escape" then
+					-- We won't want to do this forever, but XXX
+				end
+			end
+		)
+		on_event("unpause", function(msg)
+			window{pauseable = false}
+		end)
+	end
+	
+	-- public functions
+	function _init()
+		window{
+			width = 280,
+			--height = 192,
+			height = 192 + 16,
+			resizeable = false,
+			pauseable = false,
+			capture_escapes = true,
+		}
+		setup_keys()
+		
+		theApp = App:new()
+	end
+	
+	function _update()
+		theApp:update()
+	end
+	
+	function _draw()
+		theApp:draw()
+	end
+	
+end -- do
 :: video.lua
---[[pod_format="raw",created="2026-06-15 06:05:43",modified="2026-06-15 07:49:51",revision=12,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 06:05:43",modified="2026-06-17 14:08:51",revision=13,xstickers={}]]
 -- video.lua
 --
 -- Video subsystem. Responsible for drawing the Apple ][ screen
@@ -191,8 +221,6 @@ Video = {}
 function Video.get_line_addr(base, lnum)
 	-- Get the memory address to the start of the specified
 	-- line of text
-	-- TODO: emulate Apple ][ VTAB routine, for real addrs
-	-- TODO: respect alternate video buffer
 	local grp = lnum // 8
 	local sln = lnum % 8
 	return base + ((40 * grp) | (sln << 7))
@@ -313,7 +341,7 @@ function Video.new(bus)
 	return video
 end
 :: .info.pod
---[[pod,created="2026-05-26 21:14:32",file_item={},modified="2026-06-15 07:49:51",runtime=27,workspaces={{location="main.lua#19,4",workspace_index=1},{location="bus.lua#58,5",workspace_index=1},{location="app.lua#34,32",workspace_index=1},{location="video.lua#141,8",workspace_index=1}}]]
+--[[pod,bbs_id="_dev6320",created="2026-05-26 21:14:32",file_item={},modified="2026-06-19 09:28:26",runtime=27,sandbox="bbs",workspaces={{location="main.lua#24,50",workspace_index=1},{location="bus.lua#52,5",workspace_index=1},{location="app.lua#19,24",workspace_index=1},{location="video.lua#24,17",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
