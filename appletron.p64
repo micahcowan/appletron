@@ -1001,7 +1001,7 @@ Video = {}
 
 function Video.get_line_addr(base, lnum)
 	-- Get the memory address to the start of the specified
-	-- line of text
+	-- line of text (0-based)
 	local grp = lnum // 8
 	local sln = lnum % 8
 	return base + ((40 * grp) | (sln << 7))
@@ -1015,6 +1015,12 @@ function Video.new(class, bus)
 		_bus = bus,
 		_dirty_info = 0,
 		_base = Locs.TEXT1, -- base address of video memory (1024 or 2048)
+		
+		-- The following are NOT the Apple ]['s CH/CV (x,y pos), but are
+		-- internal, for the purpose of writing internal diagnostics to
+		-- display memory in the machine (used by cpu:_halt())
+		_ch = 0,
+		_cv = 0,
 	}
 	
 	-- public methods
@@ -1050,6 +1056,48 @@ function Video.new(class, bus)
 	
 	function video:get_line_addr(lnum)
 		return Video.get_line_addr(self._base, lnum)
+	end
+	
+	function video:cls()
+		-- Set TEXT1 and clear screen to spaces
+		-- set internal cursor to 0,0
+		self._base = Locs.TEXT1
+		self._ch = 0
+		self._cv = 0
+		for loc=Locs.TEXT1,(Locs.TEXT2-1) do
+			self._bus:poke(loc, 0xA0 --[[space char]])
+		end
+	end
+	
+	function video:prln(msg)
+		video:print(msg)
+		-- now move to next line
+		if self._ch ~= 0 then
+			self._ch = 0
+			self._cv += 1
+		end
+	end
+	
+	function video:print(msg, attrib)
+		local lnbas = Video.get_line_addr(Locs.TEXT1, self._cv)
+		for i=1,#msg do
+			-- print a character
+			local c = ord(msg[i])
+			if (c >= 0x60) c -= 0x20
+			c |= 0x80		-- NORMAL text display
+			if type(attrib) ~= "nil" then
+				c += attrib		-- apply any requested font-shift,
+				c %= 0x100		-- keeping it within range
+			end
+			video._bus:poke(lnbas + self._ch, c)
+			
+			self._ch += 1
+			if self._ch >= 40 then
+				self._ch = 0
+				self._cv += 1
+				lnbas = Video.get_line_addr(Locs.TEXT1, self._cv)
+			end
+		end
 	end
 	
 	-- private methods
