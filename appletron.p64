@@ -337,7 +337,7 @@ do
 	
 end -- do
 :: op6502.lua
---[[pod_format="raw",created="2026-06-20 08:38:53",modified="2026-06-20 09:00:42",revision=3,xstickers={}]]
+--[[pod_format="raw",created="2026-06-20 08:38:53",modified="2026-06-20 09:12:30",revision=6,xstickers={}]]
 -- op6502.lua
 --
 -- Op-code handling for CPU
@@ -366,8 +366,15 @@ do
 	
 	-- (global)
 	OpCodes6502 = {
-		[0x01]	-- ORA (MEM,x).
+		[0x01]	-- ORA (MEM,x)
 			= mkop_read_indx(function(cpu, val) cpu.a |= val cpu:_fxflgs(cpu.a) end),
+		[0x21]	-- AND (MEM,x)
+			= mkop_read_indx(function(cpu, val) cpu.a &= val cpu:_fxflgs(cpu.a) end),
+		[0x41]	-- EOR (MEM,x)
+			= mkop_read_indx(function(cpu, val) cpu.a = cpu.a ~ val cpu:_fxflgs(cpu.a) end),
+		[0xA1]	-- LDA (MEM,x)
+			= mkop_read_indx(function(cpu, val) cpu.a = val cpu:_fxflgs(cpu.a) end),
+		
 	}
 --[==[
         case 0x05: // ORA, ZP
@@ -437,9 +444,6 @@ do
                 go_to(dest);
                 cycle();
             }
-            break;
-        case 0x21: // AND, (MEM,x)
-            OP_READ_INDX(ff(ACC &= val));
             break;
         case 0x24: // BIT, ZP
             OP_READ_ZP(do_bit(val));
@@ -519,9 +523,6 @@ do
                 (void) peek(STACK);
                 cycle(); // 6
             }
-            break;
-        case 0x41: // EOR, (MEM,x)
-            OP_READ_INDX(ff(ACC ^= val));
             break;
         case 0x45: // EOR, ZP
             OP_READ_ZP(ff(ACC ^= val));
@@ -727,9 +728,6 @@ do
             break;
         case 0xA0: // LDY, immed.
             OP_READ_IMM(ff(YREG = val));
-            break;
-        case 0xA1: // LDA, (MEM,x)
-            OP_READ_INDX(ff(ACC = val));
             break;
         case 0xA2: // LDX, immed.
             OP_READ_IMM(ff(XREG = val));
@@ -1070,7 +1068,7 @@ function Video.new(class, bus)
 	return video
 end
 :: .info.pod
---[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-20 09:00:42",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#35,1",workspace_index=1},{location="bus.lua#60,32",workspace_index=1},{location="app.lua#64,20",workspace_index=1},{location="video.lua#112,36",workspace_index=1},{location="cpu6502.lua#78,51",workspace_index=1},{location="op6502.lua#33,1",workspace_index=1}}]]
+--[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-20 09:12:30",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#35,1",workspace_index=1},{location="bus.lua#60,32",workspace_index=1},{location="app.lua#64,20",workspace_index=1},{location="video.lua#112,36",workspace_index=1},{location="cpu6502.lua#78,51",workspace_index=1},{location="op6502.lua#40,9",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -1094,21 +1092,21 @@ Xw9n5gABOAAVZzgBAAwAcWsPbQ9BH28eAADoAQQcABFHNgAAeAEVYzoAMHcve1YAABQAAxgAAAgA
 EUMcADJxL3-AAAHcAAGwACQPf6YAAlYBIi9-hgAkL39mAQMgAAKqACJvHwABD64C-zUPSAH-MVBd
 j38PQQ==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 09:00:42"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 09:12:30"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 09:00:42"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 09:12:30"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 09:00:42"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 09:12:30"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
