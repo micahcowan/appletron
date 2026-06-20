@@ -4,6 +4,25 @@ version 2
 :: gfx/
 :: map/
 :: sfx/
+:: a2locs.lua
+--[[pod_format="raw",created="2026-06-20 20:37:32",modified="2026-06-20 20:41:40",revision=2,xstickers={}]]
+-- a2locs.lua
+--
+-- Important memory locations on the Apple ][
+
+Locs = {
+	TEXT1		= 0x400,		-- lores and text screen
+	TEXT2		= 0x800,		-- alternate lores/text screen
+	LORES_SZ	= 1024,		-- size of a lorez/text screen
+	
+	-- Locations for important in-memory CPU jump addresses
+	Vec = {
+		NMI	= 0xFFFA,
+		RESET	= 0xFFFC,
+		IRQ		= 0xFFFE,
+		BRK	= 0xFFFE, -- same as IRQ
+	},
+}
 :: app.lua
 --[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-20 20:31:08",revision=91,xstickers={}]]
 -- appletron   by Micah Cowan <micah@addictivecode.org>
@@ -196,7 +215,7 @@ function Bus.new(class, opts)
 	return bus
 end
 :: cpu6502.lua
---[[pod_format="raw",created="2026-06-20 05:20:44",modified="2026-06-20 20:33:29",revision=25,xstickers={}]]
+--[[pod_format="raw",created="2026-06-20 05:20:44",modified="2026-06-20 20:38:18",revision=28,xstickers={}]]
 -- cpu6502.lua
 --
 -- CPU emulation. Opcode handling is in op6502.lua
@@ -215,13 +234,6 @@ Cpu6502 = {
 		V = 64,	-- oVerflow
 		N = 128,	-- negative
 	},
-	-- Locations for important in-memory CPU jump addresses
-	Vec = {
-		NMI	= 0xFFFA,
-		RESET	= 0xFFFC,
-		IRQ		= 0xFFFE,
-		BRK	= 0xFFFE, -- same as IRQ
-	},
 }
 
 -- NON-METHOD utility functions
@@ -233,7 +245,6 @@ function Cpu6502.new(class, bus)
 	-- simpler mnemonics, copied from Cpu6502
 	local Cpu = Cpu6502
 	local PF = Cpu6502.PF
-	local Vec = Cpu6502.Vec
 
 	local cpu = {
 		-- public data members
@@ -261,7 +272,7 @@ function Cpu6502.new(class, bus)
 		
 		self:_spadv(-3)
 		
-		local vecrst = Vec.RESET
+		local vecrst = Locs.Vec.RESET
 		local lo, hi = self._bus:peek(vecrst), self._bus:peek(vecrst)
 		self.pc = Cpu.wd(lo, hi)
 		self.cycles -= 8
@@ -321,7 +332,7 @@ function Cpu6502.new(class, bus)
 	return cpu
 end
 :: main.lua
---[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-19 19:02:32",revision=191,xstickers={}]]
+--[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-20 20:43:47",revision=192,xstickers={}]]
 -- appletron   by Micah Cowan <micah@addictivecode.org>
 --
 -- An emulator of the Apple ][ for Picotron
@@ -329,6 +340,7 @@ end
 -- https://github.com/micahcowan/appletron
 
 include "app.lua"
+include "a2locs.lua"
 
 do
 	-- local function
@@ -965,7 +977,7 @@ do
 --]==]
 end -- do (for local scoping)
 :: video.lua
---[[pod_format="raw",created="2026-06-15 06:05:43",modified="2026-06-20 16:22:06",revision=17,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 06:05:43",modified="2026-06-20 20:43:16",revision=20,xstickers={}]]
 -- video.lua
 --
 -- Video subsystem. Responsible for drawing the Apple ][ screen
@@ -1002,7 +1014,7 @@ function Video.new(class, bus)
 		-- private data members
 		_bus = bus,
 		_dirty_info = 0,
-		_base = 1024, -- base address of video memory (1024 or 2048)
+		_base = Locs.TEXT1, -- base address of video memory (1024 or 2048)
 	}
 	
 	-- public methods
@@ -1079,7 +1091,7 @@ function Video.new(class, bus)
 	
 	function video:_get_lnum_for_addr(addr)
 		local lnum = nil
-		if addr < self._base or addr >= self._base + 1024
+		if addr < self._base or addr >= self._base + Locs.LORES_SZ
 				or (addr % 128) >= 120 then
 			-- leave lnum nil: not a valid text/lores location
 		else
@@ -1096,7 +1108,7 @@ function Video.new(class, bus)
 	
 	-- listen for memory changes
 	video._bus:listen_poke(function(addr, val)
-		if addr >= 0x400 and addr < 0xC00 then
+		if addr >= Locs.TEXT1 and addr < (Locs.TEXT2 + Locs.LORES_SZ) then
 			local lnum = video:_get_lnum_for_addr(addr)
 			if type(lnum) ~= "nil" then
 				video:_set_dirty(lnum)
@@ -1110,7 +1122,7 @@ function Video.new(class, bus)
 	return video
 end
 :: .info.pod
---[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-20 20:33:29",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#35,1",workspace_index=1},{location="app.lua#87,1",workspace_index=1},{location="bus.lua#16,36",workspace_index=1},{location="video.lua#43,40",workspace_index=1},{location="cpu6502.lua#26,2",workspace_index=1},{location="op6502.lua#40,9",workspace_index=1}}]]
+--[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-20 20:43:47",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#8,21",workspace_index=1},{location="app.lua#87,1",workspace_index=1},{location="bus.lua#16,36",workspace_index=1},{location="video.lua#131,64",workspace_index=1},{location="cpu6502.lua#57,26",workspace_index=1},{location="op6502.lua#40,9",workspace_index=1},{location="a2locs.lua#9,2",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -1157,21 +1169,21 @@ LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0t
 LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0t
 LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLThwUU1EQXdJaWs9Iik=
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 20:33:29"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 20:43:47"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 20:33:29"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 20:43:47"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 20:33:29"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 20:43:47"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
