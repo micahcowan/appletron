@@ -5,7 +5,7 @@ version 2
 :: map/
 :: sfx/
 :: app.lua
---[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-17 03:39:01",revision=40,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-20 04:51:13",revision=59,xstickers={}]]
 -- appletron   by Micah Cowan <micah@addictivecode.org>
 --
 -- An emulator of the Apple ][ for Picotron
@@ -27,7 +27,13 @@ App = {}
 function App.new(class)
 	app = {}
 	
-	app.bus = Bus.new()
+	-- TODO: handle missing ROM file, making sure to create /appdata dir
+	local path ="/appdata/bbs/appletron/apple2plus.rom"
+	if type(env().sandbox) ~= "nil" then
+		path = "/appdata/apple2plus.rom"
+	end
+	local rom = fetch(path)
+	app.bus = Bus.new{rom = rom, rom_start = 0xD000}
 	app.video = Video.new(app.bus)
 	
 	-- public methods
@@ -63,7 +69,20 @@ function App.new(class)
 	end
 
 	function app.draw(self)
-		self.video:display()
+		--self.video:display()
+		cls()
+--		print(pod(env()))
+		s=""
+		for loc=0xCFFF,0xD003 do
+			s ..= tostr(self.bus:peek(loc), 16) .. " "
+		end
+		print(s, 0, 0)
+		s=""
+		for loc=0xFFF8,0xFFFF do
+			s ..= tostr(self.bus:peek(loc), 16) .. " "
+		end
+		print(s, 0, 10)
+		print(tostr(self.bus:peek(0xFFFF), 16), 0, 20)
 	end
 	
 	palt(0) -- no transparent pixels
@@ -75,7 +94,7 @@ function App.new(class)
 	return app
 end
 :: bus.lua
---[[pod_format="raw",created="2026-06-15 06:12:09",modified="2026-06-19 09:28:26",revision=11,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 06:12:09",modified="2026-06-20 04:56:13",revision=19,xstickers={}]]
 -- bus.lua
 --
 -- Manages reading/writing from the emulated Apple ]['s
@@ -84,17 +103,40 @@ end
 
 Bus = {}
 
-function Bus.new()
+function Bus.new(opts)
 	local bus = {
 		-- private data members
 		_mem = userdata("u8", 65536),
 		_poke_lsnrs = {}, -- TODO: abstract listening into its own class
+		_rom_start = 65536, -- past the end of memory
 	}
+	for k in all{
+		"rom",
+		"rom_start",
+	} do
+		if type(opts[k]) ~= nil then
+			bus["_" .. k] = opts[k]
+		end
+	end
 	
 	-- public methods
 	function bus.peek(self, addr)
 		-- read a value off the Apple ][ bus
-		return self._mem[addr]
+		local val
+		local rom, rs = self._rom, self._rom_start
+		local rty = type(rom)
+		if rty ~= "nil" and addr >= rs and addr - rs < #rom then
+			if rty == "string" then
+				-- string (fetched from file) is allowed
+				val = ord(rom[1 + addr - rs])
+			elseif rty == "userdata" then
+				val = rom[addr - rs]
+			end
+		else
+			val = self._mem[addr]
+		end
+		
+		return val
 	end
 	
 	function bus.poke(self, addr, val)
@@ -142,7 +184,7 @@ function Bus.new()
 	return bus
 end
 :: main.lua
---[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-17 06:47:26",revision=180,xstickers={}]]
+--[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-19 19:02:32",revision=191,xstickers={}]]
 -- appletron   by Micah Cowan <micah@addictivecode.org>
 --
 -- An emulator of the Apple ][ for Picotron
@@ -164,7 +206,7 @@ do
 					-- unfortunately, the following doesn't work when sandboxed! :(
 					send_message(3, {event = "toggle_pause_menu"})
 					-- ...still, we just toggled pauseable to true, so they can now hit Enter
-					-- afterward, I suppose. Or run us sandboxed.
+					-- afterward, I suppose. Or run us unsandboxed.
 				elseif c == "Escape" then
 					-- We won't want to do this forever, but XXX
 				end
@@ -345,7 +387,7 @@ function Video.new(bus)
 	return video
 end
 :: .info.pod
---[[pod,bbs_id="_dev6320",created="2026-05-26 21:14:32",file_item={},modified="2026-06-19 09:28:26",runtime=27,sandbox="bbs",workspaces={{location="main.lua#24,50",workspace_index=1},{location="bus.lua#52,5",workspace_index=1},{location="app.lua#19,24",workspace_index=1},{location="video.lua#24,17",workspace_index=1}}]]
+--[[pod,bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},modified="2026-06-20 04:56:13",runtime=27,sandbox="bbs",workspaces={{location="main.lua#35,1",workspace_index=1},{location="bus.lua#31,30",workspace_index=1},{location="app.lua#68,17",workspace_index=1},{location="video.lua#24,17",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -369,21 +411,21 @@ Xw9n5gABOAAVZzgBAAwAcWsPbQ9BH28eAADoAQQcABFHNgAAeAEVYzoAMHcve1YAABQAAxgAAAgA
 EUMcADJxL3-AAAHcAAGwACQPf6YAAlYBIi9-hgAkL39mAQMgAAKqACJvHwABD64C-zUPSAH-MVBd
 j38PQQ==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-19 09:28:26"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 04:56:13"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-19 09:28:26"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 04:56:13"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-19 09:28:26"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 04:56:13"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
