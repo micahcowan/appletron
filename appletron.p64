@@ -5,7 +5,7 @@ version 2
 :: map/
 :: sfx/
 :: app.lua
---[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-20 07:38:06",revision=69,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-20 20:31:08",revision=91,xstickers={}]]
 -- appletron   by Micah Cowan <micah@addictivecode.org>
 --
 -- An emulator of the Apple ][ for Picotron
@@ -24,20 +24,42 @@ vblank_cycles = 70 * cycles_per_line
 
 App = {}
 
-function App.new(class)
+function App.new(class, opts)
 	app = {}
-	
-	-- TODO: handle missing ROM file, making sure to create /appdata dir
-	local path ="/appdata/bbs/appletron/apple2plus.rom"
-	if type(env().sandbox) ~= "nil" then
-		path = "/appdata/apple2plus.rom"
+	if type(opts) == "nil" then
+		opts = {
+			mode = "normal",
+		}
 	end
-	local rom = fetch(path)
-	app.bus = Bus:new{rom = rom, rom_start = 0xD000}
+	app._opts = opts
+	
+	if opts.mode == "normal" then
+		-- TODO: handle missing ROM file, making sure to create /appdata dir
+		local path ="/appdata/bbs/appletron/apple2plus.rom"
+		if type(env().sandbox) ~= "nil" then
+			path = "/appdata/apple2plus.rom"
+		end
+		local rom = fetch(path)
+		app.bus = Bus:new{rom = rom, rom_start = 0xD000}
+	elseif opts.mode == "optest" then
+		local ramfile = fetch("ftest6502.pod")
+		if type(ramfile) == "nil" then
+			error("Mode is optest, can't find ./ftest6502.pod")
+		end
+		app.bus = Bus:new()
+		app.bus._mem = unpod(ramfile) -- replace ram with loaded tests
+	else
+		error("Unknown opts.mode \"" .. opts.mode .. "\"")
+	end
 	app.video = Video:new(app.bus)
 	app.cpu = Cpu6502:new(app.bus)
 	
 	-- public methods
+	if true then -- don't run display test
+	function app:update()
+		app.cpu:run(17030)
+	end
+	else -- true: run display test mode
 	function app:update()
 		local step = time() // (1/4.2)
 		
@@ -68,6 +90,7 @@ function App.new(class)
 			end
 		end
 	end
+	end -- display test mode?
 
 	function app:draw()
 		self.video:display()
@@ -82,7 +105,7 @@ function App.new(class)
 	return app
 end
 :: bus.lua
---[[pod_format="raw",created="2026-06-15 06:12:09",modified="2026-06-20 07:37:41",revision=23,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 06:12:09",modified="2026-06-20 20:10:00",revision=24,xstickers={}]]
 -- bus.lua
 --
 -- Manages reading/writing from the emulated Apple ]['s
@@ -98,6 +121,7 @@ function Bus.new(class, opts)
 		_poke_lsnrs = {}, -- TODO: abstract listening into its own class
 		_rom_start = 65536, -- past the end of memory
 	}
+	if (type(opts) == "nil") opts = {}
 	for k in all{
 		"rom",
 		"rom_start",
@@ -172,7 +196,7 @@ function Bus.new(class, opts)
 	return bus
 end
 :: cpu6502.lua
---[[pod_format="raw",created="2026-06-20 05:20:44",modified="2026-06-20 08:57:41",revision=22,xstickers={}]]
+--[[pod_format="raw",created="2026-06-20 05:20:44",modified="2026-06-20 20:33:29",revision=25,xstickers={}]]
 -- cpu6502.lua
 --
 -- CPU emulation. Opcode handling is in op6502.lua
@@ -222,6 +246,9 @@ function Cpu6502.new(class, bus)
 		
 		cycles = 0, -- approximate number of cycles
 						-- remaining before we'll return control
+		instrs = 0, -- # instructions executed (or attempted)
+						-- since CPU start
+		halted = false,
 	}
 	cpu._bus = bus
 	
@@ -241,8 +268,10 @@ function Cpu6502.new(class, bus)
 	end
 	
 	function cpu:run(cycles)
+		if (self._halted) return
 		self.cycles = cycles
 		while self.cycles > 0 do
+			self.instrs += 1
 			local bus = self._bus
 			local op = bus:peek(self.pc)
 			self.pc += 1 -- always advance at least 1, after an op
@@ -250,8 +279,13 @@ function Cpu6502.new(class, bus)
 			local imm1 = bus:peek(self.pc+1)
 			
 			local handlr = OpCodes6502[op]
-			if (type(handlr) == "nil") handlr = OpCodes6502[0x00]
-			handlr(self, op, imm, imm1)
+			if (type(handlr) ~= "nil") then
+				handlr(self, op, imm, imm1)
+			else
+				self.pc -= 1 -- return to where we found opcode
+				self._halt(op)
+				self.cycles = 0
+			end
 		end
 	end
 	
@@ -273,6 +307,14 @@ function Cpu6502.new(class, bus)
 		cpu.p &= 0xFF ~ (Z | N)
 		-- add in new flag vals
 		cpu.p |= nf
+	end
+	
+	function cpu:_halt(op)
+		-- Used when illegal instruction encountered. Halt execution,
+		-- and display info about the situation.
+		
+		-- First, clear screen to spaces
+		
 	end
 	
 	cpu:reset()
@@ -1068,7 +1110,7 @@ function Video.new(class, bus)
 	return video
 end
 :: .info.pod
---[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-20 16:23:05",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#35,1",workspace_index=1},{location="bus.lua#60,32",workspace_index=1},{location="app.lua#64,20",workspace_index=1},{location="video.lua#43,40",workspace_index=1},{location="cpu6502.lua#78,51",workspace_index=1},{location="op6502.lua#40,9",workspace_index=1}}]]
+--[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-20 20:33:29",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#35,1",workspace_index=1},{location="app.lua#87,1",workspace_index=1},{location="bus.lua#16,36",workspace_index=1},{location="video.lua#43,40",workspace_index=1},{location="cpu6502.lua#26,2",workspace_index=1},{location="op6502.lua#40,9",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -1115,21 +1157,21 @@ LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0t
 LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0t
 LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLThwUU1EQXdJaWs9Iik=
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 16:23:05"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 20:33:29"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 16:23:05"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 20:33:29"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 16:23:05"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 20:33:29"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
