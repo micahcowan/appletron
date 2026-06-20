@@ -5,14 +5,14 @@ version 2
 :: map/
 :: sfx/
 :: app.lua
---[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-20 05:15:01",revision=62,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-20 06:08:52",revision=65,xstickers={}]]
 -- appletron   by Micah Cowan <micah@addictivecode.org>
 --
 -- An emulator of the Apple ][ for Picotron
 -- written in Lua (with Picotron language additions)
 -- https://github.com/micahcowan/appletron
 
---include "cpu6502.lua"
+include "cpu6502.lua"
 include "video.lua"
 include "bus.lua"
 
@@ -35,6 +35,7 @@ function App.new(class)
 	local rom = fetch(path)
 	app.bus = Bus.new{rom = rom, rom_start = 0xD000}
 	app.video = Video.new(app.bus)
+	app.cpu = Cpu6502:new(app.bus)
 	
 	-- public methods
 	function app.update(self)
@@ -69,20 +70,7 @@ function App.new(class)
 	end
 
 	function app.draw(self)
-		--self.video:display()
-		cls()
---		print(pod(env()))
-		s=""
-		for loc=0xCFFF,0xD003 do
-			s ..= tostr(self.bus:peek(loc), 16) .. " "
-		end
-		print(s, 0, 0)
-		s=""
-		for loc=0xFFF8,0xFFFF do
-			s ..= tostr(self.bus:peek(loc), 16) .. " "
-		end
-		print(s, 0, 10)
-		print(tostr(self.bus:peek(0xFFFF), 16), 0, 20)
+		self.video:display()
 	end
 	
 	palt(0) -- no transparent pixels
@@ -94,7 +82,7 @@ function App.new(class)
 	return app
 end
 :: bus.lua
---[[pod_format="raw",created="2026-06-15 06:12:09",modified="2026-06-20 04:56:13",revision=19,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 06:12:09",modified="2026-06-20 05:16:59",revision=20,xstickers={}]]
 -- bus.lua
 --
 -- Manages reading/writing from the emulated Apple ]['s
@@ -182,6 +170,72 @@ function Bus.new(opts)
 	end
 
 	return bus
+end
+:: cpu6502.lua
+--[[pod_format="raw",created="2026-06-20 05:20:44",modified="2026-06-20 06:10:59",revision=12,xstickers={}]]
+-- cpu6502.lua
+--
+-- CPU emulation
+
+Cpu6502 = {
+	-- Processor flags
+	PF = {
+		C = 1,	-- carry
+		Z = 2,	-- zero
+		I = 4,		-- interrupts
+		D = 8,	-- decimal
+		B = 16,	-- break (NOT a real CPU flag, always set on PLP)
+		U = 32,	-- unused (NOT a real CPU flag, always set on PLP)
+		V = 64,	-- oVerflow
+		N = 128,	-- negative
+	},
+	-- Locations for important in-memory CPU jump addresses
+	Vec = {
+		NMI	= 0xFFFA,
+		RESET	= 0xFFFC,
+		IRQ		= 0xFFFE,
+		BRK	= 0xFFFE, -- same as IRQ
+	},
+}
+
+-- NON-METHOD utility functions
+function Cpu6502.wd(lo, hi)
+	return (lo & 0xFF) | ((hi & 0xFF) << 8)
+end
+
+function Cpu6502.new(class, bus)
+	-- simpler mnemonics, copied from Cpu6502
+	local Cpu = Cpu6502
+	local PF = Cpu6502.PF
+	local Vec = Cpu6502.Vec
+
+	local cpu = {
+		-- public data members
+		pc = 0,
+		sp = 0,
+		p = 0, -- processor flags
+		a = 0, -- acc
+		x = 0,
+		y = 0,
+		
+		cycles = 0, -- approximate number of cycles
+						-- remaining before we'll return control
+	}
+	cpu._bus = bus
+	
+	-- public methods
+	function cpu:reset()
+		-- don't go through the rigamorale of cycle-by-cycle
+		-- operations... Picotron doesn't afford us enough
+		-- cycles to spin ourselves uselessly
+		self.p |= PF.B | PF.U
+		local vecrst = Vec.RESET
+		local lo, hi = self._bus:peek(vecrst), self._bus:peek(vecrst)
+		self.pc = Cpu.wd(lo, hi)
+	end
+	
+	cpu:reset()
+	return cpu
 end
 :: main.lua
 --[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-19 19:02:32",revision=191,xstickers={}]]
@@ -387,7 +441,7 @@ function Video.new(bus)
 	return video
 end
 :: .info.pod
---[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-20 05:17:58",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#35,1",workspace_index=1},{location="bus.lua#31,30",workspace_index=1},{location="app.lua#7,1",workspace_index=1},{location="video.lua#24,17",workspace_index=1}}]]
+--[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-20 06:10:59",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#35,1",workspace_index=1},{location="bus.lua#29",workspace_index=1},{location="app.lua#30,20",workspace_index=1},{location="video.lua#24,17",workspace_index=1},{location="cpu6502.lua#25,1",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -411,21 +465,21 @@ Xw9n5gABOAAVZzgBAAwAcWsPbQ9BH28eAADoAQQcABFHNgAAeAEVYzoAMHcve1YAABQAAxgAAAgA
 EUMcADJxL3-AAAHcAAGwACQPf6YAAlYBIi9-hgAkL39mAQMgAAKqACJvHwABD64C-zUPSAH-MVBd
 j38PQQ==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 05:15:01"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 06:10:59"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 05:15:01"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 06:10:59"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 05:15:01"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 06:10:59"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
