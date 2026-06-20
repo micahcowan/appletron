@@ -172,10 +172,12 @@ function Bus.new(class, opts)
 	return bus
 end
 :: cpu6502.lua
---[[pod_format="raw",created="2026-06-20 05:20:44",modified="2026-06-20 08:05:13",revision=17,xstickers={}]]
+--[[pod_format="raw",created="2026-06-20 05:20:44",modified="2026-06-20 08:57:41",revision=22,xstickers={}]]
 -- cpu6502.lua
 --
--- CPU emulation
+-- CPU emulation. Opcode handling is in op6502.lua
+
+include "op6502.lua"
 
 Cpu6502 = {
 	-- Processor flags
@@ -230,7 +232,7 @@ function Cpu6502.new(class, bus)
 		-- cycles to spin ourselves uselessly
 		self.p |= PF.B | PF.U
 		
-		self:_spdec(3)
+		self:_spadv(-3)
 		
 		local vecrst = Vec.RESET
 		local lo, hi = self._bus:peek(vecrst), self._bus:peek(vecrst)
@@ -238,13 +240,136 @@ function Cpu6502.new(class, bus)
 		self.cycles -= 8
 	end
 	
+	function cpu:run(cycles)
+		self.cycles = cycles
+		while self.cycles > 0 do
+			local bus = self._bus
+			local op = bus:peek(self.pc)
+			self.pc += 1 -- always advance at least 1, after an op
+			local imm = bus:peek(self.pc)
+			local imm1 = bus:peek(self.pc+1)
+			
+			local handlr = OpCodes6502[op]
+			if (type(handlr) == "nil") handlr = OpCodes6502[0x00]
+			handlr(self, op, imm, imm1)
+		end
+	end
+	
+	-- private methods
+	function cpu:_spadv(n)
+		-- advance stack pointer by n (can be negative), keeping
+		-- it in the range 0x00 - 0xFF.
+		self.sp = (self.sp + n) % 256
+	end
+	
+	function cpu:_fxflgs(val)
+		-- fixup the Zero and Negative processor flags, based on |val|.
+		local nf = 0
+		local Z, N = PF.Z, PF.N
+		
+		if (val == 0) nf |= Z
+		if (val & 0x80 ~= 0) nf |= N
+		-- mask out current Z, N
+		cpu.p &= 0xFF ~ (Z | N)
+		-- add in new flag vals
+		cpu.p |= nf
+	end
+	
+	cpu:reset()
+	return cpu
+end
+:: main.lua
+--[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-19 19:02:32",revision=191,xstickers={}]]
+-- appletron   by Micah Cowan <micah@addictivecode.org>
+--
+-- An emulator of the Apple ][ for Picotron
+-- written in Lua (with Picotron language additions)
+-- https://github.com/micahcowan/appletron
+
+include "app.lua"
+
+do
+	-- local function
+	local function setup_keys()
+		on_event("keydown",
+			function(msg)
+				local c = stat(302, msg.scancode)
+				if c == "F1" then
+					window{pauseable = true}
+					--send_message(3, {event = "set_window", attribs = {pauseable = true}}, true)
+					
+					-- unfortunately, the following doesn't work when sandboxed! :(
+					send_message(3, {event = "toggle_pause_menu"})
+					-- ...still, we just toggled pauseable to true, so they can now hit Enter
+					-- afterward, I suppose. Or run us unsandboxed.
+				elseif c == "Escape" then
+					-- We won't want to do this forever, but XXX
+				end
+			end
+		)
+		on_event("unpause", function(msg)
+			window{pauseable = false}
+		end)
+	end
+	
+	-- public functions
+	function _init()
+		window{
+			width = 280,
+			--height = 192,
+			height = 192 + 16,
+			resizeable = false,
+			pauseable = false,
+			capture_escapes = true,
+		}
+		setup_keys()
+		
+		theApp = App:new()
+	end
+	
+	function _update()
+		theApp:update()
+	end
+	
+	function _draw()
+		theApp:draw()
+	end
+	
+end -- do
+:: op6502.lua
+--[[pod_format="raw",created="2026-06-20 08:38:53",modified="2026-06-20 09:00:42",revision=3,xstickers={}]]
+-- op6502.lua
+--
+-- Op-code handling for CPU
+
+do
+	-- opcode-handler factories.
+	--
+	-- A lot of 6502 operations have shared behavior with other ops.
+	-- We provide factory functions that create a handler that does the
+	-- shared behavior; we pass in the unique behavior as a fn arg
+	
+	function mkop_read_indx(cpu, behav)
+		-- OP (MEM,x)
+		return function(cpu, _, imm, _)
+			cpu.pc += 1
+			local bus = cpu._bus
+			bus:peek(cpu.x)
+			local addr = imm + cpu.x
+			local lo = bus:peek(addr & 0xFF)
+			local hi = bus:peek((addr + 1) & 0xFF)
+			local val = bus:peek(lo | (hi << 8))
+			behav(cpu, val)
+			cpu.cycles -= 5
+		end
+	end
+	
+	-- (global)
+	OpCodes6502 = {
+		[0x01]	-- ORA (MEM,x).
+			= mkop_read_indx(function(cpu, val) cpu.a |= val cpu:_fxflgs(cpu.a) end),
+	}
 --[==[
-bool cpu_step_6502(byte op, byte immed)
-{
-    switch (op) {
-        case 0x01: // ORA, (MEM,x).
-            OP_READ_INDX(ff(ACC |= val));
-            break;
         case 0x05: // ORA, ZP
             OP_READ_ZP(ff(ACC |= val));
             break;
@@ -798,88 +923,7 @@ bool cpu_step_6502(byte op, byte immed)
 }
 
 --]==]
-	
-	function cpu:run(cycles)
-		self.cycles = cycles
-		while self.cycles > 0 do
-			local bus = self._bus
-			local op = bus:peek(self.pc)
-			self.pc += 1 -- always advance at least 1, after an op
-			local imm = bus:peek(self.pc)
-			local imm1 = bus:peek(self.pc+1)
-			
-			local handlr = opcode_handlers[op]
-			if (type(handlr) == "nil") handlr = opcode_handlers[0x00]
-			handlr(self, op, imm, imm1)
-		end
-	end
-	
-	-- private methods
-	function cpu:_spdec(n)
-		self.sp = (self.sp - n) % 256
-	end
-	
-	cpu:reset()
-	return cpu
-end
-:: main.lua
---[[pod_format="raw",created="2026-06-13 05:26:30",modified="2026-06-19 19:02:32",revision=191,xstickers={}]]
--- appletron   by Micah Cowan <micah@addictivecode.org>
---
--- An emulator of the Apple ][ for Picotron
--- written in Lua (with Picotron language additions)
--- https://github.com/micahcowan/appletron
-
-include "app.lua"
-
-do
-	-- local function
-	local function setup_keys()
-		on_event("keydown",
-			function(msg)
-				local c = stat(302, msg.scancode)
-				if c == "F1" then
-					window{pauseable = true}
-					--send_message(3, {event = "set_window", attribs = {pauseable = true}}, true)
-					
-					-- unfortunately, the following doesn't work when sandboxed! :(
-					send_message(3, {event = "toggle_pause_menu"})
-					-- ...still, we just toggled pauseable to true, so they can now hit Enter
-					-- afterward, I suppose. Or run us unsandboxed.
-				elseif c == "Escape" then
-					-- We won't want to do this forever, but XXX
-				end
-			end
-		)
-		on_event("unpause", function(msg)
-			window{pauseable = false}
-		end)
-	end
-	
-	-- public functions
-	function _init()
-		window{
-			width = 280,
-			--height = 192,
-			height = 192 + 16,
-			resizeable = false,
-			pauseable = false,
-			capture_escapes = true,
-		}
-		setup_keys()
-		
-		theApp = App:new()
-	end
-	
-	function _update()
-		theApp:update()
-	end
-	
-	function _draw()
-		theApp:draw()
-	end
-	
-end -- do
+end -- do (for local scoping)
 :: video.lua
 --[[pod_format="raw",created="2026-06-15 06:05:43",modified="2026-06-20 07:40:03",revision=16,xstickers={}]]
 -- video.lua
@@ -1026,7 +1070,7 @@ function Video.new(class, bus)
 	return video
 end
 :: .info.pod
---[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-20 08:05:18",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#35,1",workspace_index=1},{location="bus.lua#60,32",workspace_index=1},{location="app.lua#64,20",workspace_index=1},{location="video.lua#112,36",workspace_index=1},{location="cpu6502.lua#58,8",workspace_index=1}}]]
+--[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-20 09:00:42",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#35,1",workspace_index=1},{location="bus.lua#60,32",workspace_index=1},{location="app.lua#64,20",workspace_index=1},{location="video.lua#112,36",workspace_index=1},{location="cpu6502.lua#78,51",workspace_index=1},{location="op6502.lua#33,1",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -1050,21 +1094,21 @@ Xw9n5gABOAAVZzgBAAwAcWsPbQ9BH28eAADoAQQcABFHNgAAeAEVYzoAMHcve1YAABQAAxgAAAgA
 EUMcADJxL3-AAAHcAAGwACQPf6YAAlYBIi9-hgAkL39mAQMgAAKqACJvHwABD64C-zUPSAH-MVBd
 j38PQQ==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 08:05:18"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 09:00:42"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 08:05:18"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 09:00:42"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 08:05:18"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-20 09:00:42"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
