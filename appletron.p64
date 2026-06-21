@@ -228,10 +228,13 @@ function Bus.new(class, opts)
 	return bus
 end
 :: cpu6502.lua
---[[pod_format="raw",created="2026-06-20 05:20:44",modified="2026-06-21 17:17:41",revision=62,xstickers={}]]
+--[[pod_format="raw",created="2026-06-20 05:20:44",modified="2026-06-21 19:35:19",revision=66,xstickers={}]]
 -- cpu6502.lua
 --
 -- CPU emulation. Opcode handling is in op6502.lua
+-- Also the Registers class (base class for CPU)
+
+Registers = {}
 
 Cpu6502 = {
 	-- Processor flags
@@ -249,17 +252,30 @@ Cpu6502 = {
 
 include "op6502.lua"
 
--- NON-METHOD utility functions
+-- NON-METHOD utility functions (Registers)
+function Registers.clone(reg)
+	-- clone registers from |reg|.
+	-- If |reg| is a Cpu6502 instance, clone will
+	-- still be _only_ a Registers instance
+	local newReg = Registers:new()
+	
+	local cpyFlds = {
+		"pc", "sp", "p", "a", "x", "y",
+		"pget", "pgetd", "pput",
+	}
+	for f in all(cpyFlds) do
+		newReg[f] = reg[f]
+	end
+end
+
+-- NON-METHOD utility functions (CPU)
 function Cpu6502.wd(lo, hi)
 	return (lo & 0xFF) | ((hi & 0xFF) << 8)
 end
 
-function Cpu6502.new(class, bus)
-	-- simpler mnemonics, copied from Cpu6502
+function Registers.new(class)
 	local Cpu = Cpu6502
-	local PF = Cpu6502.PF
-
-	local cpu = {
+	local reg = {
 		-- public data members
 		pc = 0,
 		sp = 0,
@@ -267,13 +283,51 @@ function Cpu6502.new(class, bus)
 		a = 0, -- acc
 		x = 0,
 		y = 0,
-		
-		cycles = 0, -- approximate number of cycles
-						-- remaining before we'll return control
-		instrs = 0, -- # instructions executed (or attempted)
-						-- since CPU start
-		halted = false,
 	}
+	
+	function reg:pget(fnm)
+		-- return named flag's value as boolean
+		if (self.p & Cpu.PF[fnm]) ~= 0 then
+			return true
+		else
+			return false
+		end
+	end
+	
+	function reg:pgetd(fnm)
+		-- return named flag's value as 0 or 1
+		if (self.p & Cpu.PF[fnm]) ~= 0 then
+			return 1
+		else
+			return 0
+		end
+	end
+	
+	function reg:pput(fnm, val)
+		-- set named flag's value (val is boolean)
+		if val then
+			-- set the flag
+			self.p |= Cpu.PF[fnm]
+		else
+			-- reset the flag
+			self.p &= (0xFF ~ Cpu.PF[fnm])
+		end
+	end
+	
+	return reg
+end
+
+function Cpu6502.new(class, bus)
+	-- simpler mnemonics, copied from Cpu6502
+	local Cpu = Cpu6502
+	local PF = Cpu6502.PF
+
+	local cpu = Registers:new() -- Cpu6502 inherits from Registers
+	cpu.cycles = 0	-- approximate number of cycles
+						-- remaining before we'll return control
+	cpu.instrs = 0	-- # instructions executed (or attempted)
+						-- since CPU start
+	cpu.halted = false
 	cpu._bus = bus
 	
 	-- public methods
@@ -328,6 +382,11 @@ function Cpu6502.new(class, bus)
 		end
 	end
 	
+	function cpu:halt()
+		self._halted = true
+		self.cycles = 0
+	end
+	
 	-- private methods
 	function cpu:_spadv(n)
 		-- advance stack pointer by n (can be negative), keeping
@@ -346,11 +405,6 @@ function Cpu6502.new(class, bus)
 		cpu.p &= 0xFF ~ (Z | N)
 		-- add in new flag vals
 		cpu.p |= nf
-	end
-	
-	function cpu:halt()
-		self._halted = true
-		self.cycles = 0
 	end
 	
 	function cpu:_illop(op)
