@@ -369,13 +369,21 @@ function Cpu6502.new(class, bus)
 		self.instrs += 1
 		local bus = self._bus
 		local op = bus:peek(self.pc)
+		local pc = self.pc
 		self.pc += 1 -- always advance at least 1, after an op
 		self.cycles -= 1 -- always spend at least 1 cycle reading the op
 		local imm = bus:peek(self.pc)
 		
 		local handlr = OpCodes6502[op]
 		if (type(handlr) ~= "nil") then
-			handlr(self, op, imm)
+			sf, err = pcall(function() handlr(self, op, imm) end)
+			if not sf then
+				error("Exception while processing op " .. hex(op)
+					.. " " .. hex(imm) .. ":\n" .. err)
+			end
+			assert(self.a ~= nil, string.format(
+				"A is nil. PC = %04X, OP = %02X %02X",
+				pc, op, imm))
 		else
 			self.pc -= 1 -- return to where we found opcode
 			self:_illop(op)
