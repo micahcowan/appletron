@@ -349,13 +349,13 @@ function Cpu6502.new(class, bus)
 		while self.cycles > 0 do
 			if not cpu.testmode then
 				self:step()
-			elseif self.pc == 1 then
+			elseif self.pc == 2 then
 				-- test suite reporting success!
 				self:halt()
 				self._video:cls()
 				self._video:prln("test suite success!")
-			elseif self.pc == 2 then
-				-- test suite reporting success!
+			elseif self.pc == 1 then
+				-- test suite reporting failure!
 				self:halt()
 				self._video:cls()
 				self._video:prln("test suite FAILURE!")
