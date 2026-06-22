@@ -531,7 +531,7 @@ do
 	
 	-- common behavior functions
 	-- 	routines to handle common behaviors like add/subtract
-	function do_adc(c, val)
+	local function do_adc(c, val)
 		if c:pget("D") then
 			-- decimal-mode adc
 			local sumL = (c.a & 0x0F) + (val & 0x0F) + c:pgetd("C")
@@ -560,7 +560,7 @@ do
 		end
 	end
 
-	function do_sbc_seq3(r, val)
+	local function do_sbc_seq3(r, val)
 		local diffL = (r.a & 0x0F) - (val & 0x0F) - (1 - r:pgetd("C"))
 		diffL %= 256
 		if (diffL & 0x10) diffL -= 6
@@ -571,7 +571,7 @@ do
 		r.a = (((diffH << 4) | (diffL & 0x0F)) & 0xFF)
 	end
 	
-	function do_sbc_bin(r, val)
+	local function do_sbc_bin(r, val)
 		local diff = r.a - val - (1 - r:pgetd("C"))
 		diff %= 65536
 		r:pput("N", (diff & 0x80) ~= 0)
@@ -583,7 +583,7 @@ do
 		r.a = diff & 0xFF
 	end
 
-	function do_sbc(c, val)
+	local function do_sbc(c, val)
 		if c:ptest("D") then
 			-- decimal subtract mode
 			
@@ -603,28 +603,28 @@ do
 		end
 	end
 	
-	function do_cmp(c, a, b)
+	local function do_cmp(c, a, b)
 		local diff = (a - b) % 256
 		c:pput("N", (diff & 0x80) ~= 0)
 		c:pput("Z", diff == 0)
 		c:pput("C", a >= b)
 	end
 	
-	function do_bit(c, val)
+	local function do_bit(c, val)
 		local band = c.a & val
 		c:pput("N", (val & 0x80) ~= 0)
 		c:pput("V", (val & 0x40) ~= 0)
 		c:pput("Z", band == 0)
 	end
 	
-	function do_asl(cpu, val)
+	local function do_asl(cpu, val)
 		cpu:pput("C", (val & 0x80) ~= 0)
 		local ret = (val << 1) & 0xFF
 		cpu:_fxflgs(ret)
 		return ret
 	end
 	
-	function do_rol(cpu, val)
+	local function do_rol(cpu, val)
 		local c = cpu:pgetd("C")
 		cpu:pput("C", (val & 0x80) ~= 0)
 		local ret = ((val << 1) & 0xFF) | c
@@ -632,14 +632,14 @@ do
 		return ret
 	end
 	
-	function do_lsr(cpu, val)
+	local function do_lsr(cpu, val)
 		cpu:pput("C", (val & 0x01) ~= 0)
 		local ret = val >> 1
 		cpu:_fxflgs(ret)
 		return ret
 	end
 	
-	function do_ror(cpu, val)
+	local function do_ror(cpu, val)
 		local c = cpu:pgetd("C")
 		cpu:pput("C", (val & 0x01) ~= 0)
 		local ret = (val >> 1) | (c << 7)
