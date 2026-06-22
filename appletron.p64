@@ -404,7 +404,7 @@ function Cpu6502.new(class, bus)
 	function cpu:pop()
 		local addr = 0x0100 + self.sp
 		self.sp = (self.sp + 1) % 256
-		local val = self._bus:peek(addr)
+		return self._bus:peek(addr)
 	end
 	
 	-- private methods
