@@ -228,7 +228,7 @@ function Bus.new(class, opts)
 	return bus
 end
 :: cpu6502.lua
---[[pod_format="raw",created="2026-06-20 05:20:44",modified="2026-06-21 20:36:37",revision=70,xstickers={}]]
+--[[pod_format="raw",created="2026-06-20 05:20:44",modified="2026-06-22 04:14:12",revision=76,xstickers={}]]
 -- cpu6502.lua
 --
 -- CPU emulation. Opcode handling is in op6502.lua
@@ -521,7 +521,7 @@ do
 	
 end -- do
 :: op6502.lua
---[[pod_format="raw",created="2026-06-20 08:38:53",modified="2026-06-21 20:48:09",revision=104,xstickers={}]]
+--[[pod_format="raw",created="2026-06-20 08:38:53",modified="2026-06-22 04:15:38",revision=122,xstickers={}]]
 -- op6502.lua
 --
 -- Op-code handling for CPU
@@ -608,6 +608,13 @@ do
 		c:pput("N", (diff & 0x80) ~= 0)
 		c:pput("Z", diff == 0)
 		c:pput("C", a >= b)
+	end
+	
+	function do_bit(c, val)
+		local band = c.a & val
+		c:pput("N", (val & 0x80) ~= 0)
+		c:pput("V", (val & 0x40) ~= 0)
+		c:pput("Z", band == 0)
 	end
 	
 	-- opcode-handler factories.
@@ -714,6 +721,8 @@ do
 				end,
 		[0x29]	-- AND #IMM
 			= mkop_read_imm(function(c, val) c.a &= val c:_fxflgs(c.a) end),
+		[0x2C]	-- BIT ABS
+			= mkop_read_abs(do_bit),
 		[0x2D]	-- AND ABS
 			= mkop_read_abs(function(c, val) c.a &= val c:_fxflgs(c.a) end),
 		[0x30]	-- BMI
@@ -741,10 +750,14 @@ do
 			= mkop_branch("V", false),
 		[0x58]	-- CLI
 			= function(c) c.p &= (0xFF ~ C.PF.I) c.cycles -= 1 end,
+		[0x61]	-- ADC (MEM,x)
+			= mkop_read_indx(do_adc),
 		[0x68]	-- PLA
 			=	function(c) c.a = c:pop() c.cycles -= 3 end,
 		[0x69] -- ADC #IMM
 			= mkop_read_imm(do_adc),
+		[0x6D]	-- ADC ABS
+			= mkop_read_abs(do_adc),
 		[0x70]	-- BVS
 			= mkop_branch("V", true),
 		[0x78]	-- SEI
@@ -795,6 +808,8 @@ do
 			= function(c) c.x = c.sp c:_fxflgs(c.x) c.cycles -= 1 end,
 		[0xC0] -- CPY #IMM
 			= mkop_read_imm(function(c, val) do_cmp(c, c.y, val) end),
+		[0xC1]	-- CMP (MEM,x)
+			= mkop_read_indx(function (c, val) do_cmp(c, c.a, val) end),
 		[0xC2]	-- UNDOCUMENTED: NOP #IMM
 			-- Used in BITSY.BOOT. Perhaps to distinguish a 65816?
 			= mkop_read_imm(function() end),
@@ -812,12 +827,18 @@ do
 					cpu:_fxflgs(cpu.x)
 					cpu.cycles -= 1
 				end,
+		[0xCC]	-- CPY ABS
+			= mkop_read_abs(function(c, val) do_cmp(c, c.y, val) end),
+		[0xCD]	-- CMP ABS
+			= mkop_read_abs(function(c, val) do_cmp(c, c.a, val) end),
 		[0xD0]	-- BNE
 			= mkop_branch("Z", false),
 		[0xD8]	-- CLD
 			= function(c) c.p &= (0xFF ~ C.PF.D) c.cycles -= 1 end,
 		[0xE0] -- CPX #IMM
 			= mkop_read_imm(function(c, val) do_cmp(c, c.x, val) end),
+		[0xE1]	-- SBC (MEM,x)
+			= mkop_read_indx(do_sbc),
 		[0xE8]	-- INX
 			=	function(cpu)
 					cpu.x = (cpu.x + 1) % 256
@@ -828,21 +849,19 @@ do
 			= mkop_read_imm(do_sbc),
 		[0xEA]	-- NOP (official one)
 			= function(c) c.cycles -= 1 end,
+		[0xEC]	-- CPX ABS
+			= mkop_read_abs(function(c, val) do_cmp(c, c.x, val) end),
+		[0xED]	-- SBC ABS
+			= mkop_read_abs(do_sbc),
 		[0xF0]	-- BEQ
 			= mkop_branch("Z", true),
 		[0xF8]	-- SED
 			= function(c) c.p |= C.PF.D c.cycles -= 1 end,
-			
+		
 	}
 	function fake() end
 --[==[
 
-        case 0x8C: // STY, abs
-            OP_WRITE_ABS(YREG);
-            break;
-        case 0x8D: // STA, abs
-            OP_WRITE_ABS(ACC);
-            break;
         case 0x05: // ORA, ZP
             OP_READ_ZP(ff(ACC |= val));
             break;
@@ -900,9 +919,6 @@ do
             break;
         case 0x2A: // ROL, impl.
             OP_RMW_IMPL(ACC = do_rol(ACC));
-            break;
-        case 0x2C: // BIT, abs
-            OP_READ_ABS(do_bit(val));
             break;
         case 0x2E: // ROL, abs
             OP_RMW_ABS(val = do_rol(val));
@@ -988,9 +1004,6 @@ do
                 cycle(); // 6
             }
             break;
-        case 0x61: // ADC, (MEM,x)
-            OP_READ_INDX(do_adc(val));
-            break;
         case 0x65: // ADC, ZP
             OP_READ_ZP(do_adc(val));
             break;
@@ -1020,9 +1033,6 @@ do
                 go_to(dest);
                 cycle(); // 5
             }
-            break;
-        case 0x6D: // ADC, abs
-            OP_READ_ABS(do_adc(val));
             break;
         case 0x6E: // ROR, abs
             OP_RMW_ABS(val = do_ror(val));
@@ -1108,9 +1118,6 @@ do
         case 0xBE: // LDX MEM,y
             OP_READ_ABS_IDX(YREG, ff(XREG = val));
             break;
-        case 0xC1: // CMP, (MEM,x)
-            OP_READ_INDX(do_cmp(ACC, val));
-            break;
         case 0xC4: // CPY, ZP
             OP_READ_ZP(do_cmp(YREG, val));
             break;
@@ -1119,12 +1126,6 @@ do
             break;
         case 0xC6: // DEC, ZP
             OP_RMW_ZP(ff(--val));
-            break;
-        case 0xCC: // CPY, abs.
-            OP_READ_ABS(do_cmp(YREG, val));
-            break;
-        case 0xCD: // CMP, abs.
-            OP_READ_ABS(do_cmp(ACC, val));
             break;
         case 0xCE: // DEC, abs.
             OP_RMW_ABS(ff(--val));
@@ -1147,9 +1148,6 @@ do
         case 0xDE: // DEC, MEM,x
             OP_RMW_ABS_IDX(XREG, ff(--val));
             break;
-        case 0xE1: // SBC, (MEM,x)
-            OP_READ_INDX(do_sbc(val));
-            break;
         case 0xE4: // CPX, ZP
             OP_READ_ZP(do_cmp(XREG, val));
             break;
@@ -1158,12 +1156,6 @@ do
             break;
         case 0xE6: // INC, ZP
             OP_RMW_ZP(ff(++val));
-            break;
-        case 0xEC: // CPX, abs.
-            OP_READ_ABS(do_cmp(XREG, val));
-            break;
-        case 0xED: // SBC, abs.
-            OP_READ_ABS(do_sbc(val));
             break;
         case 0xEE: // INC, abs.
             OP_RMW_ABS(ff(++val));
@@ -1404,7 +1396,7 @@ function Video.new(class, bus)
 	return video
 end
 :: .info.pod
---[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-21 20:48:09",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#9,19",workspace_index=1},{location="app.lua#54,2",workspace_index=1},{location="bus.lua#49,18",workspace_index=1},{location="video.lua#41,55",workspace_index=1},{location="cpu6502.lua#167,32",workspace_index=1},{location="op6502.lua#221,50",workspace_index=1},{location="a2locs.lua#9,2",workspace_index=1},{location="util.lua#10,27",workspace_index=1}}]]
+--[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-22 04:15:38",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#9,19",workspace_index=1},{location="app.lua#54,2",workspace_index=1},{location="bus.lua#49,18",workspace_index=1},{location="video.lua#41,55",workspace_index=1},{location="cpu6502.lua#176,30",workspace_index=1},{location="op6502.lua#336,3",workspace_index=1},{location="a2locs.lua#9,2",workspace_index=1},{location="util.lua#10,27",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -1554,21 +1546,21 @@ AEQKAQAOBgAAjACkyQ_9Cw9aD8kPQnoAFFJ6ABFICQDACQ8KD4YPCw_6D70CYwAUMOcARckPNAsE
 Vhn8lQAZC5UAFyWVAJGmDwsP6A_lDwqVADIoD0CKAAC1DAR3AB_xdwACFP93ACYJCA4AD3oADRFa
 DgAvBgR5AAcf-wEAqrBSD48PQwAED50PQw==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-21 20:48:09"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-22 04:15:38"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-21 20:48:09"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-22 04:15:38"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-21 20:48:09"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-22 04:15:38"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
