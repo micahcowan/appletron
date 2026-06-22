@@ -228,7 +228,7 @@ function Bus.new(class, opts)
 	return bus
 end
 :: cpu6502.lua
---[[pod_format="raw",created="2026-06-20 05:20:44",modified="2026-06-22 04:14:12",revision=76,xstickers={}]]
+--[[pod_format="raw",created="2026-06-20 05:20:44",modified="2026-06-22 05:16:59",revision=77,xstickers={}]]
 -- cpu6502.lua
 --
 -- CPU emulation. Opcode handling is in op6502.lua
@@ -521,7 +521,7 @@ do
 	
 end -- do
 :: op6502.lua
---[[pod_format="raw",created="2026-06-20 08:38:53",modified="2026-06-22 05:00:51",revision=147,xstickers={}]]
+--[[pod_format="raw",created="2026-06-20 08:38:53",modified="2026-06-22 05:17:18",revision=153,xstickers={}]]
 -- op6502.lua
 --
 -- Op-code handling for CPU
@@ -726,7 +726,20 @@ do
 			cpu.pc += 1
 			local val = cpu._bus:peek(imm)
 			behav(cpu, val)
-			cpu.cycles += 2
+			cpu.cycles -= 2
+		end
+	end
+	
+	local function mkop_rmw_zp(behav)
+		return function(cpu, _, imm)
+			cpu.pc += 1
+			local val = cpu._bus:peek(imm)
+			-- early poke of the value happens here IRL;
+			-- since this is ZP it can't actually impact anything
+			-- so we'll leave it out
+			val = behav(cpu, val)
+			cpu._bus:poke(imm, val)
+			cpu.cycles -= 4
 		end
 	end
 
@@ -928,28 +941,30 @@ do
 			= mkop_branch("Z", true),
 		[0xF8]	-- SED
 			= function(c) c.p |= C.PF.D c.cycles -= 1 end,
+		
+		[0x06]	-- ASL ZP
+			= do_asl,
+		[0x26]	-- ROL ZP
+			= do_rol,
+		[0x46]	-- LSR ZP
+			= do_lsr,
+		[0x66]	-- ROR ZP
+			= do_ror,
+		[0xC6]	-- DEC ZP
+			=	function(cpu, val)
+					local ret = (val-1) % 256
+					cpu:_fxflgs(r)
+					return ret
+				end,
+		[0xE6]	-- INC ZP
+			=	function(cpu, val)
+					local ret = (val+1) % 256
+					cpu:_fxflgs(r)
+					return ret
+				end,
 	}
 	function fake() end
 --[==[
-
-        case 0x06: // ASL, ZP
-            OP_RMW_ZP(val = do_asl(val));
-            break;
-        case 0x26: // ROL, ZP
-            OP_RMW_ZP(val = do_rol(val));
-            break;
-        case 0x46: // LSR, ZP
-            OP_RMW_ZP(val = do_lsr(val));
-            break;
-        case 0x66: // ROR, ZP
-            OP_RMW_ZP(val = do_ror(val));
-            break;
-        case 0xC6: // DEC, ZP
-            OP_RMW_ZP(ff(--val));
-            break;
-        case 0xE6: // INC, ZP
-            OP_RMW_ZP(ff(++val));
-            break;
 
         case 0x0E: // ASL, abs
             OP_RMW_ABS(val = do_asl(val));
@@ -1419,7 +1434,7 @@ function Video.new(class, bus)
 	return video
 end
 :: .info.pod
---[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-22 05:00:51",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#9,19",workspace_index=1},{location="app.lua#54,2",workspace_index=1},{location="bus.lua#49,18",workspace_index=1},{location="video.lua#41,55",workspace_index=1},{location="op6502.lua#291,57",workspace_index=1},{location="cpu6502.lua#176,30",workspace_index=1},{location="a2locs.lua#9,2",workspace_index=1},{location="util.lua#10,27",workspace_index=1}}]]
+--[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-22 05:17:18",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#9,19",workspace_index=1},{location="app.lua#54,2",workspace_index=1},{location="bus.lua#49,18",workspace_index=1},{location="video.lua#41,55",workspace_index=1},{location="op6502.lua#443,7",workspace_index=1},{location="cpu6502.lua#121,23",workspace_index=1},{location="a2locs.lua#9,2",workspace_index=1},{location="util.lua#10,27",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -1569,21 +1584,21 @@ AEQKAQAOBgAAjACkyQ_9Cw9aD8kPQnoAFFJ6ABFICQDACQ8KD4YPCw_6D70CYwAUMOcARckPNAsE
 Vhn8lQAZC5UAFyWVAJGmDwsP6A_lDwqVADIoD0CKAAC1DAR3AB_xdwACFP93ACYJCA4AD3oADRFa
 DgAvBgR5AAcf-wEAqrBSD48PQwAED50PQw==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-22 05:00:51"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-22 05:17:18"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-22 05:00:51"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-22 05:17:18"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-22 05:00:51"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-22 05:17:18"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
