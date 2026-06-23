@@ -47,7 +47,7 @@ function App.new(class, opts)
 	app = {}
 	if type(opts) == "nil" then
 		opts = {
-			mode = "optest",
+			mode = "normal",
 		}
 	end
 	app._opts = opts
@@ -82,7 +82,8 @@ function App.new(class, opts)
 	-- public methods
 	if true then -- don't run display test
 	function app:update()
-		app.cpu:run(17030)
+		--app.cpu:run(17030)
+		app.cpu:run(17030//32) -- Run CPU 32x slower, to avoid 1-2 fps updates :-/
 	end
 	else -- true: run display test mode
 	function app:update()
