@@ -595,7 +595,7 @@ do
 	
 end -- do
 :: op6502.lua
---[[pod_format="raw",created="2026-06-20 08:38:53",modified="2026-06-23 03:51:40",revision=213,xstickers={}]]
+--[[pod_format="raw",created="2026-06-20 08:38:53",modified="2026-06-23 04:17:16",revision=226,xstickers={}]]
 -- op6502.lua
 --
 -- Op-code handling for CPU
@@ -605,6 +605,28 @@ do
 	
 	-- common behavior functions
 	-- 	routines to handle common behaviors like add/subtract
+	local function do_acc_or(cpu, val)
+		cpu.a |= val
+		cpu:_fxflgs(cpu.a)
+	end
+	
+	local function do_acc_and(cpu, val)
+		cpu.a &= val
+		cpu:_fxflgs(cpu.a)
+	end
+	
+	local function do_acc_eor(cpu, val)
+		cpu.a = cpu.a ~ val
+		cpu:_fxflgs(cpu.a)
+	end
+	
+	local function mkdo_set_reg(regnm)
+		return function(cpu, val)
+			cpu[regnm] = val
+			cpu:_fxflgs(cpu[regnm])
+		end
+	end
+	
 	local function do_adc(c, val)
 		if c:pget("D") then
 			-- decimal-mode adc
@@ -682,6 +704,11 @@ do
 		c:pput("N", (diff & 0x80) ~= 0)
 		c:pput("Z", diff == 0)
 		c:pput("C", a >= b)
+	end
+	local function mkdo_cmp(regnm)
+		return function(cpu, val)
+			do_cmp(cpu, cpu[regnm], val)
+		end
 	end
 	
 	local function do_bit(c, val)
@@ -910,9 +937,9 @@ do
 		[0x00]	-- BRK
 			= do_brk,
 		[0x01]	-- ORA (MEM,x)
-			= mkop_read_indx(function(c, val) c.a |= val c:_fxflgs(c.a) end),
+			= mkop_read_indx(do_acc_or),
 		[0x05]	-- ORA ZP
-			= mkop_read_zp(function(c, val) c.a |= val c:_fxflgs(c.a) end),
+			= mkop_read_zp(do_acc_or),
 		[0x06]	-- ASL ZP
 			= mkop_rmw_zp(do_asl),
 		[0x08]	-- PHP
@@ -923,31 +950,31 @@ do
 					c.cycles -= 2
 				end,
 		[0x09]	-- ORA #IMM
-			= mkop_read_imm(function(c, val) c.a |= val c:_fxflgs(c.a) end),
+			= mkop_read_imm(do_acc_or),
 		[0x0A]	-- ASL
 			= function(c) c.a = do_asl(c, c.a) c.cycles -= 1 end,
 		[0x0D]	-- ORA ABS
-			= mkop_read_abs(function(c, val) c.a |= val c:_fxflgs(c.a) end),
+			= mkop_read_abs(do_acc_or),
 		[0x10]	-- BPL
 			= mkop_branch("N", false),
-		[0x15]	-- ORA ZP,xc
-			= mkop_read_zp_idx("x", function(c, val) c.a |= val c:_fxflgs(c.a) end),
+		[0x15]	-- ORA ZP,x
+			= mkop_read_zp_idx("x", do_acc_or),
 		[0x18]	-- CLC
 			= function(c) c.p &= (0xFF ~ C.PF.C) c.cycles -= 1 end,
 		[0x19]	-- ORA MEM,y
-			= mkop_read_abs_idx("y", function(cpu, val) cpu.a |= val cpu:_fxflgs(cpu.a) end),
+			= mkop_read_abs_idx("y", do_acc_or),
 		[0x1A]	-- UNDOCUMENTED nop. ProDOS uses it to distinguish CPU types
 			= function(c) c.cycles -= 1 end,
 		[0x1D]	-- ORA MEM,x
-			= mkop_read_abs_idx("x", function(cpu, val) cpu.a |= val cpu:_fxflgs(cpu.a) end),
+			= mkop_read_abs_idx("x", do_acc_or),
 		[0x20]	-- JSR
 			= do_jsr,
 		[0x21]	-- AND (MEM,x)
-			= mkop_read_indx(function(c, val) c.a &= val c:_fxflgs(c.a) end),
+			= mkop_read_indx(do_acc_and),
 		[0x24]	-- BIT ZP
 			= mkop_read_zp(do_bit),
 		[0x25]	-- AND ZP
-			= mkop_read_zp(function(c, val) c.a &= val c:_fxflgs(c.a) end),
+			= mkop_read_zp(do_acc_and),
 		[0x26]	-- ROL ZP
 			= mkop_rmw_zp(do_rol),
 		[0x28]	-- PLP
@@ -956,37 +983,37 @@ do
 					c.cycles -= 3
 				end,
 		[0x29]	-- AND #IMM
-			= mkop_read_imm(function(c, val) c.a &= val c:_fxflgs(c.a) end),
+			= mkop_read_imm(do_acc_and),
 		[0x2A]	-- ROL
 			= function(c) c.a = do_rol(c, c.a) c.cycles -= 1 end,
 		[0x2C]	-- BIT ABS
 			= mkop_read_abs(do_bit),
 		[0x2D]	-- AND ABS
-			= mkop_read_abs(function(c, val) c.a &= val c:_fxflgs(c.a) end),
+			= mkop_read_abs(do_acc_and),
 		[0x30]	-- BMI
 			= mkop_branch("N", true),
 		[0x35]	-- AND ZP,x
-			= mkop_read_zp_idx("x", function(c, val) c.a &= val c:_fxflgs(c.a) end),
+			= mkop_read_zp_idx("x", do_acc_and),
 		[0x38]	-- SEC
 			= function(c) c.p |= C.PF.C c.cycles -= 1 end,
 		[0x39]	-- AND MEM,y
-			= mkop_read_abs_idx("y", function(cpu, val) cpu.a &= val cpu:_fxflgs(cpu.a) end),
+			= mkop_read_abs_idx("y", do_acc_and),
 		[0x3A]	-- undocumented nop
 			= function(c) c.cycles -= 1 end,
 		[0x3D]	-- AND MEM,x
-			= mkop_read_abs_idx("x", function(cpu, val) cpu.a &= val cpu:_fxflgs(cpu.a) end),
+			= mkop_read_abs_idx("x", do_acc_and),
 		[0x40]	-- RTI
 			= do_rti,
 		[0x41]	-- EOR (MEM,x)
-			= mkop_read_indx(function(c, val) c.a = c.a ~ val c:_fxflgs(c.a) end),
+			= mkop_read_indx(do_acc_eor),
 		[0x45]	-- EOR ZP
-			= mkop_read_zp(function(c, val) c.a = c.a ~ val c:_fxflgs(c.a) end),
+			= mkop_read_zp(do_acc_eor),
 		[0x46]	-- LSR ZP
 			= mkop_rmw_zp(do_lsr),
 		[0x48]	-- PHA
 			=	function(c) c:push(c.a) c.cycles -= 2 end,
 		[0x49]	-- EOR #IMM
-			= mkop_read_imm(function(c, val) c.a = (c.a ~ val) c:_fxflgs(c.a) end),
+			= mkop_read_imm(do_acc_eor),
 		[0x4A]	-- LSR
 			= function(c) c.a = do_lsr(c, c.a) c.cycles -= 1 end,
 		[0x4C]	-- JMP
@@ -997,17 +1024,17 @@ do
 					c.cycles -= 2
 				end,
 		[0x4D]	-- EOR ABS
-			= mkop_read_abs(function(c, val) c.a = c.a ~ val c:_fxflgs(c.a) end),
+			= mkop_read_abs(do_acc_eor),
 		[0x50]	-- BVC
 			= mkop_branch("V", false),
 		[0x55]	-- EOR ZP,x
-			= mkop_read_zp_idx("x", function(c, val) c.a = c.a ~ val c:_fxflgs(c.a) end),
+			= mkop_read_zp_idx("x", do_acc_eor),
 		[0x58]	-- CLI
 			= function(c) c.p &= (0xFF ~ C.PF.I) c.cycles -= 1 end,
 		[0x59]	-- EPOR MEM,y
-			= mkop_read_abs_idx("y", function(cpu, val) cpu.a = cpu.a ~ val cpu:_fxflgs(cpu.a) end),
+			= mkop_read_abs_idx("y", do_acc_eor),
 		[0x5D]	-- EOR MEM,x
-			= mkop_read_abs_idx("x", function(cpu, val) cpu.a = cpu.a ~ val cpu:_fxflgs(cpu.a) end),
+			= mkop_read_abs_idx("x", do_acc_eor),
 		[0x60]	-- RTS
 			= do_rts,
 		[0x61]	-- ADC (MEM,x)
@@ -1063,60 +1090,60 @@ do
 		[0x9A]	-- TXS
 			= function(c) c.sp = c.x --[[ no flag changes! ]] c.cycles -= 1 end,
 		[0xA0]	-- LDY #IMM
-			= mkop_read_imm(function(c, val) c.y = val c:_fxflgs(c.y) end),
+			= mkop_read_imm(mkdo_set_reg("y")),
 		[0xA1]	-- LDA (MEM,x)
-			= mkop_read_indx(function(c, val) c.a = val c:_fxflgs(c.a) end),
+			= mkop_read_indx(mkdo_set_reg("a")),
 		[0xA2]	-- LDX #IMM
-			= mkop_read_imm(function(c, val) c.x = val c:_fxflgs(val) end),
+			= mkop_read_imm(mkdo_set_reg("x")),
 		[0xA4]	-- LDY ZP
-			= mkop_read_zp(function(c, val) c.y = val c:_fxflgs(c.y) end),
+			= mkop_read_zp(mkdo_set_reg("y")),
 		[0xA5]	-- LDA ZP
-			= mkop_read_zp(function(c, val) c.a = val c:_fxflgs(c.a) end),
+			= mkop_read_zp(mkdo_set_reg("a")),
 		[0xA6]	-- LDX ZP
-			= mkop_read_zp(function(c, val) c.x = val c:_fxflgs(c.x) end),
+			= mkop_read_zp(mkdo_set_reg("x")),
 		[0xA8]	-- TAY
 			= function(c) c.y = c.a c:_fxflgs(c.y) c.cycles -= 1 end,
 		[0xA9]	-- LDA #IMM
-			= mkop_read_imm(function(c, val) c.a = val c:_fxflgs(c.a) end),
+			= mkop_read_imm(mkdo_set_reg("a")),
 		[0xAA]	-- TAX
 			= function(c) c.x = c.a c:_fxflgs(c.x) c.cycles -= 1 end,
 		[0xAC]	-- LDY ABS
-			= mkop_read_abs(function(c, val) c.y = val c:_fxflgs(c.y) end),
+			= mkop_read_abs(mkdo_set_reg("y")),
 		[0xAD]	-- LDA ABS
-			= mkop_read_abs(function(c, val) c.a = val c:_fxflgs(c.a) end),
+			= mkop_read_abs(mkdo_set_reg("a")),
 		[0xAE]
-			= mkop_read_abs(function(c, val) c.x = val c:_fxflgs(c.x) end),
+			= mkop_read_abs(mkdo_set_reg("x")),
 		[0xB0]	-- BCS
 			= mkop_branch("C", true),
 		[0xB4]	-- LDY ZP,x
-			= mkop_read_zp_idx("x", function(c, val) c.y = val c:_fxflgs(c.y) end),
+			= mkop_read_zp_idx("x", mkdo_set_reg("y")),
 		[0xB5]	-- LDA ZP,x
-			= mkop_read_zp_idx("x", function(c, val) c.a = val c:_fxflgs(c.a) end),
+			= mkop_read_zp_idx("x", mkdo_set_reg("a")),
 		[0xB6]	-- LDX ZP,y
-			= mkop_read_zp_idx("y", function(c, val) c.x = val c:_fxflgs(c.x) end),
+			= mkop_read_zp_idx("y", mkdo_set_reg("x")),
 		[0xB8]	-- CLV
 			= function(c) c.p &= (0xFF ~ C.PF.V) c.cycles -= 1 end,
 		[0xB9]	-- LDA MEM,y
-			= mkop_read_abs_idx("y", function(cpu, val) cpu.a = val cpu:_fxflgs(cpu.a) end),
+			= mkop_read_abs_idx("y", mkdo_set_reg("a")),
 		[0xBA]	-- TSX
 			= function(c) c.x = c.sp c:_fxflgs(c.x) c.cycles -= 1 end,
 		[0xBC]	-- LDY MEM,x
-			= mkop_read_abs_idx("x", function(cpu, val) cpu.y = val cpu:_fxflgs(cpu.y) end),
+			= mkop_read_abs_idx("x", mkdo_set_reg("y")),
 		[0xBD]	-- LDA MEM,x
-			= mkop_read_abs_idx("x", function(cpu, val) cpu.a = val cpu:_fxflgs(cpu.a) end),
+			= mkop_read_abs_idx("x", mkdo_set_reg("a")),
 		[0xBE]	-- LDX MEM,y
-			= mkop_read_abs_idx("y", function(cpu, val) cpu.x = val cpu:_fxflgs(cpu.x) end),
+			= mkop_read_abs_idx("y", mkdo_set_reg("x")),
 		[0xC0] -- CPY #IMM
-			= mkop_read_imm(function(c, val) do_cmp(c, c.y, val) end),
+			= mkop_read_imm(mkdo_cmp("y")),
 		[0xC1]	-- CMP (MEM,x)
-			= mkop_read_indx(function (c, val) do_cmp(c, c.a, val) end),
+			= mkop_read_indx(mkdo_cmp("a")),
 		[0xC2]	-- UNDOCUMENTED: NOP #IMM
 			-- Used in BITSY.BOOT. Perhaps to distinguish a 65816?
 			= mkop_read_imm(function() end),
 		[0xC4]	-- CPY ZP
-			= mkop_read_zp(function(c, val) do_cmp(c, c.y, val) end),
+			= mkop_read_zp(mkdo_cmp("y")),
 		[0xC5]	-- CMP ZP
-			= mkop_read_zp(function(c, val) do_cmp(c, c.a, val) end),
+			= mkop_read_zp(mkdo_cmp("a")),
 		[0xC6]	-- DEC ZP
 			=	mkop_rmw_zp(function(cpu, val)
 					local ret = (val-1) % 256
@@ -1130,7 +1157,7 @@ do
 					cpu.cycles -= 1
 				end,
 		[0xC9] -- CMP #IMM
-			= mkop_read_imm(function(c, val) do_cmp(c, c.a, val) end),
+			= mkop_read_imm(mkdo_cmp("a")),
 		[0xCA]	-- DEX
 			=	function(cpu)
 					cpu.x = (cpu.x - 1) % 256
@@ -1138,25 +1165,25 @@ do
 					cpu.cycles -= 1
 				end,
 		[0xCC]	-- CPY ABS
-			= mkop_read_abs(function(c, val) do_cmp(c, c.y, val) end),
+			= mkop_read_abs(mkdo_cmp("y")),
 		[0xCD]	-- CMP ABS
-			= mkop_read_abs(function(c, val) do_cmp(c, c.a, val) end),
+			= mkop_read_abs(mkdo_cmp("a")),
 		[0xD0]	-- BNE
 			= mkop_branch("Z", false),
 		[0xD5]	-- CMP ZP,x
-			= mkop_read_zp_idx("x", function(c, val) do_cmp(c, c.a, val) end),
+			= mkop_read_zp_idx("x", mkdo_cmp("a")),
 		[0xD8]	-- CLD
 			= function(c) c.p &= (0xFF ~ C.PF.D) c.cycles -= 1 end,
 		[0xD9]	-- CMP MEM,y
-			= mkop_read_abs_idx("y", function(cpu, val) do_cmp(cpu, cpu.a, val) end),
+			= mkop_read_abs_idx("y", mkdo_cmp("a")),
 		[0xDD]	-- CMP MEM,x
-			= mkop_read_abs_idx("x", function(cpu, val) do_cmp(cpu, cpu.a, val) end),
+			= mkop_read_abs_idx("x", mkdo_cmp("a")),
 		[0xE0] -- CPX #IMM
-			= mkop_read_imm(function(c, val) do_cmp(c, c.x, val) end),
+			= mkop_read_imm(mkdo_cmp("x")),
 		[0xE1]	-- SBC (MEM,x)
 			= mkop_read_indx(do_sbc),
 		[0xE4]	-- CPX ZP
-			= mkop_read_zp(function(c, val) do_cmp(c, c.x, val) end),
+			= mkop_read_zp(mkdo_cmp("x")),
 		[0xE5]	-- SBC ZP
 			= mkop_read_zp(do_sbc),
 		[0xE6]	-- INC ZP
@@ -1176,7 +1203,7 @@ do
 		[0xEA]	-- NOP (official one)
 			= function(c) c.cycles -= 1 end,
 		[0xEC]	-- CPX ABS
-			= mkop_read_abs(function(c, val) do_cmp(c, c.x, val) end),
+			= mkop_read_abs(mkdo_cmp("x")),
 		[0xED]	-- SBC ABS
 			= mkop_read_abs(do_sbc),
 		[0xF0]	-- BEQ
@@ -1505,7 +1532,7 @@ function Video.new(class, bus)
 	return video
 end
 :: .info.pod
---[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-23 03:51:40",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#9,19",workspace_index=1},{location="app.lua#54,2",workspace_index=1},{location="bus.lua#46,61",workspace_index=1},{location="video.lua#41,55",workspace_index=1},{location="op6502.lua#549,70",workspace_index=1},{location="cpu6502.lua#46",workspace_index=1},{location="a2locs.lua#9,2",workspace_index=1},{location="util.lua#10,27",workspace_index=1}}]]
+--[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-23 04:17:16",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#9,19",workspace_index=1},{location="app.lua#54,2",workspace_index=1},{location="bus.lua#46,61",workspace_index=1},{location="video.lua#41,55",workspace_index=1},{location="op6502.lua#608,31",workspace_index=1},{location="cpu6502.lua#46",workspace_index=1},{location="a2locs.lua#9,2",workspace_index=1},{location="util.lua#10,27",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -1655,21 +1682,21 @@ AEQKAQAOBgAAjACkyQ_9Cw9aD8kPQnoAFFJ6ABFICQDACQ8KD4YPCw_6D70CYwAUMOcARckPNAsE
 Vhn8lQAZC5UAFyWVAJGmDwsP6A_lDwqVADIoD0CKAAC1DAR3AB_xdwACFP93ACYJCA4AD3oADRFa
 DgAvBgR5AAcf-wEAqrBSD48PQwAED50PQw==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-23 03:51:40"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-23 04:17:16"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-23 03:51:40"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-23 04:17:16"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-23 03:51:40"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-23 04:17:16"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
