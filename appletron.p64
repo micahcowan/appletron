@@ -595,7 +595,7 @@ do
 	
 end -- do
 :: op6502.lua
---[[pod_format="raw",created="2026-06-20 08:38:53",modified="2026-06-23 05:38:16",revision=275,xstickers={}]]
+--[[pod_format="raw",created="2026-06-20 08:38:53",modified="2026-06-23 06:34:42",revision=285,xstickers={}]]
 -- op6502.lua
 --
 -- Op-code handling for CPU
@@ -680,7 +680,7 @@ do
 	end
 
 	local function do_sbc(c, val)
-		if c:ptest("D") then
+		if c:pget("D") then
 			-- decimal subtract mode
 			
 			-- 6502 BCD SBC implementation based on
@@ -947,7 +947,8 @@ do
 	local function mkop_write_abs_idx(idxRegNm, valRegNm)
 		return function(cpu, _, imm)
 			cpu.pc += 1
-			local hi = cpu._bus:peek(pc)
+			local hi = cpu._bus:peek(cpu.pc)
+			cpu.pc += 1
 			cpu._bus:peek(C.wd((imm + cpu[idxRegNm]) & 0xFF, hi)) -- wasted
 			cpu._bus:poke(C.wd(imm, hi) + cpu[idxRegNm], cpu[valRegNm])
 			cpu.cycles -= 4
@@ -958,7 +959,8 @@ do
 		return function(cpu, _, imm)
 			cpu.pc += 1
 			local hi = cpu._bus:peek(cpu.pc)
-			local addr = C.Wd(imm, hi)
+			cpu.pc += 1
+			local addr = C.wd(imm, hi)
 			local val = cpu._bus:peek(addr)
 			cpu._bus:poke(addr, val) -- false first write
 			val = behav(cpu, val)
@@ -976,7 +978,7 @@ do
 			local wrAddr = C.wd((lo + cpu.y) & 0xFF, hi)
 			local val = cpu._bus:peek(wrAddr) -- possibly fake read
 			if (addr ~= wrAddr) then
-				pc.cycles -= 1
+				cpu.cycles -= 1
 				val = cpu._bus:peek(addr)
 			end
 			behav(cpu, val)
@@ -1005,9 +1007,9 @@ do
 			local addr = (C.wd(imm, hi) + cpu.x) % 0x10000
 			local wrAddr = C.wd((imm + cpu.x) & 0xFF, hi)
 			local val = cpu._bus:peek(wrAddr) -- false first read
-			val = peek(addr)
+			val = cpu._bus:peek(addr)
 			cpu._bus:poke(addr, val) -- false first write
-			val = behav(val)
+			val = behav(cpu, val)
 			cpu._bus:poke(addr, val)
 			cpu.cycles -= 6
 		end
@@ -1025,9 +1027,9 @@ do
 	local function op_write_indx(cpu, _, imm)
 		cpu.pc += 1
 		-- cpu._bus:peek(imm)  -- no effect, skip
-		imm += cpu.x
+		imm = (imm + cpu.x) & 0xFF
 		local lo = cpu._bus:peek(imm)
-		imm += 1
+		imm = (imm + 1) & 0xFF
 		local hi = cpu._bus:peek(imm)
 		cpu._bus:poke(C.wd(lo, hi), cpu.a)
 		cpu.cycles -= 5
@@ -1591,7 +1593,7 @@ function Video.new(class, bus)
 	return video
 end
 :: .info.pod
---[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-23 05:38:16",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#9,19",workspace_index=1},{location="app.lua#54,2",workspace_index=1},{location="bus.lua#46,61",workspace_index=1},{location="video.lua#41,55",workspace_index=1},{location="op6502.lua#635,20",workspace_index=1},{location="cpu6502.lua#46",workspace_index=1},{location="a2locs.lua#9,2",workspace_index=1},{location="util.lua#10,27",workspace_index=1}}]]
+--[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-23 06:39:00",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#9,19",workspace_index=1},{location="app.lua#54,2",workspace_index=1},{location="bus.lua#46,61",workspace_index=1},{location="video.lua#41,55",workspace_index=1},{location="op6502.lua#85,17",workspace_index=1},{location="cpu6502.lua#46",workspace_index=1},{location="a2locs.lua#9,2",workspace_index=1},{location="util.lua#10,27",workspace_index=1}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -1741,21 +1743,21 @@ AEQKAQAOBgAAjACkyQ_9Cw9aD8kPQnoAFFJ6ABFICQDACQ8KD4YPCw_6D70CYwAUMOcARckPNAsE
 Vhn8lQAZC5UAFyWVAJGmDwsP6A_lDwqVADIoD0CKAAC1DAR3AB_xdwACFP93ACYJCA4AD3oADRFa
 DgAvBgR5AAcf-wEAqrBSD48PQwAED50PQw==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-23 05:38:16"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-23 06:39:00"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-23 05:38:16"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-23 06:39:00"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-23 05:38:16"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-23 06:39:00"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
