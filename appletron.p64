@@ -1031,7 +1031,7 @@ do
 					c.cycles -= 1
 				end,
 		[0x8A]	-- TXA
-			= function(c) c.a = c.x c:_fxflgs(c.y) c.cycles -= 1 end,
+			= function(c) c.a = c.x c:_fxflgs(c.a) c.cycles -= 1 end,
 		[0x8C]	-- STY ABS
 			= mkop_write_abs("y"),
 		[0x8D]	-- STA ABS
