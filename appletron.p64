@@ -131,7 +131,8 @@ function App.new(class, opts)
 	
 	palt(0) -- no transparent pixels
 	poke(0x5f58, 0x11) -- print() uses solid background
-	fetch("a2.font"):poke(0x4000)
+	poke(0x5600, peek(0x4000, 2048)) -- move primary font to secondary
+	fetch("a2.font"):poke(0x4000) -- and load Apple ][ font as primary
 	app.did_thing = false
 	app.did_step = 0
 	
