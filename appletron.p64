@@ -27,7 +27,7 @@ Locs = {
 	},
 }
 :: app.lua
---[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-24 06:27:09",revision=158,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 05:52:44",modified="2026-06-24 06:51:53",revision=159,xstickers={}]]
 -- appletron   by Micah Cowan <micah@addictivecode.org>
 --
 -- An emulator of the Apple ][ for Picotron
@@ -1492,7 +1492,7 @@ do
 	}
 end -- do (for local scoping)
 :: rom.lua
---[[pod_format="raw",created="2026-06-24 05:38:53",modified="2026-06-24 06:30:54",revision=8,xstickers={}]]
+--[[pod_format="raw",created="2026-06-24 05:38:53",modified="2026-06-24 07:35:19",revision=29,xstickers={}]]
 -- rom.lua
 --
 -- Rom-loading management interface
@@ -1535,11 +1535,29 @@ function RomManager.new(class, opts)
 			break
 		end
 	end
+	
+--	local dlrom = fetch(RomUrls.downloads.asoft)
+--	-- patch the ROM; it contains a BRK vector that was never in any official ROMs
+--	if (dlrom[0x2FFF] == "\x59" and dlrom[0x3000] == "\xFF") then
+--		dlrom = sub(dlrom,1,0x2FFE) .. "\x40\xFA"
+--	end
+--	rom = dlrom tag = "asoft"
+	
 	if type(rom) ~= nil then
 		rmgr._bus:load_rom(rom)
 		rmgr._cpu:reset()
 		rmgr._video:_set_dirty()
 		rmgr._video:message(string.format("%s rom loaded", tag))
+	else -- No rom loaded
+		rmgr._cpu:halt()
+		local v = rmgr._video
+		v:cls()
+		v:print("NO FIRMWARE ROM AVAILABLE", 128)
+		v:prln""
+		v:prln""
+		v:prln"APPLETRON CANNOT RUN"
+		v:prln"WITHOUT A FIRMWARE ROM"
+		v:prln"SEE THE APP MENU FOR OPTIONS"
 	end
 end
 
@@ -1558,7 +1576,7 @@ function hexwd(n)
 	return string.format("%04X", n)
 end
 :: video.lua
---[[pod_format="raw",created="2026-06-15 06:05:43",modified="2026-06-24 06:47:05",revision=37,xstickers={}]]
+--[[pod_format="raw",created="2026-06-15 06:05:43",modified="2026-06-24 07:29:47",revision=40,xstickers={}]]
 -- video.lua
 --
 -- Video subsystem. Responsible for drawing the Apple ][ screen
@@ -1674,7 +1692,7 @@ function Video.new(class, bus)
 	function video:prln(msg)
 		video:print(msg)
 		-- now move to next line
-		if self._ch ~= 0 then
+		if self._ch ~= 0 or #msg == 0 then
 			self._ch = 0
 			self._cv += 1
 		end
@@ -1688,6 +1706,7 @@ function Video.new(class, bus)
 			if (c >= 0x60) c -= 0x20
 			c |= 0x80		-- NORMAL text display
 			if type(attrib) ~= "nil" then
+				if (c < 0xC0) c += 0x40
 				c += attrib		-- apply any requested font-shift,
 				c %= 0x100		-- keeping it within range
 			end
@@ -1776,7 +1795,7 @@ function Video.new(class, bus)
 	return video
 end
 :: .info.pod
---[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-24 06:47:05",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#20,4",workspace_index=1},{location="app.lua#44,65",workspace_index=1},{location="bus.lua#84,30",workspace_index=1},{location="video.lua#78,37",workspace_index=1},{location="op6502.lua#117",workspace_index=1},{location="cpu6502.lua#185,1",workspace_index=1},{location="a2locs.lua#11,24",workspace_index=1},{location="util.lua#10,27",workspace_index=1},{location="keyboard.lua#63,7",workspace_index=1},{location="rom.lua#47,57",workspace_index=1},{location="gfx/0.gfx",workspace_index=2}}]]
+--[[pod,author="Micah J Cowan",bbs_id="appletron",created="2026-05-26 21:14:32",file_item={},icon=userdata("u8",16,16,"01010101010101010101010101010101010101010101010101010101010101010101191919191901011919191919010101010101011919010119190101011001010101010119190101191901010110010101010101191901011919010101100101010101011919010119191010100101010101010119190101191901010101010101010101191901011919010101010101011010101919010119190101010101011001010119190101191901010101010110010101191901011919010101010101100101011919010119190101010101010119191919190101191919191901010101010101010101010101010101010101010101010101010101010101010101"),modified="2026-06-24 07:35:41",notes="An Apple \093[/\093[+ computer emulator\nfor Picotron!\nhttps://github.com/micahcowan/appletron",runtime=27,sandbox="bbs",title="Appletron",version="pre-alpha",workspaces={{location="main.lua#20,4",workspace_index=1},{location="app.lua#104,34",workspace_index=1},{location="bus.lua#84,30",workspace_index=1},{location="video.lua#128,25",workspace_index=1},{location="op6502.lua#117",workspace_index=1},{location="cpu6502.lua#185,1",workspace_index=1},{location="a2locs.lua#11,24",workspace_index=1},{location="util.lua#10,27",workspace_index=1},{location="keyboard.lua#63,7",workspace_index=1},{location="rom.lua#44,3",workspace_index=1},{location="gfx/0.gfx",workspace_index=2}}]]
 :: a2.font
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI2LTA2LTE0IDA5OjI5OjA4Iixtb2RpZmllZD0iMjAyNi0w
 Ni0xNCAyMzozODoyMCIscmV2aXNpb249NV1dbHo0ABgEAAAOCAAA8hNweHUAAygACAAABBcI8G4P
@@ -1926,21 +1945,21 @@ AEQKAQAOBgAAjACkyQ_9Cw9aD8kPQnoAFFJ6ABFICQDACQ8KD4YPCw_6D70CYwAUMOcARckPNAsE
 Vhn8lQAZC5UAFyWVAJGmDwsP6A_lDwqVADIoD0CKAAC1DAR3AB_xdwACFP93ACYJCA4AD3oADRFa
 DgAvBgR5AAcf-wEAqrBSD48PQwAED50PQw==
 :: gfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-24 06:47:05"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-24 07:35:41"]]
 :: gfx/0.gfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249Ml1dbHo0AH4AAAASMQAA8yF7WzBdPXtibXA9cHh1AEMg
 EBAE8FYHEAfAF9AXwAcQB-BWLGZsYWdzPTAscGFuX3gIAMt5PTAsem9vbT04fSw_AB-wMQD-----
 -----------------------------------------------------------XUG09OH19
 :: map/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-24 06:47:05"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-24 07:35:41"]]
 :: map/0.map
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTAxLTE3IDEwOjM1OjQ4Iixtb2RpZmllZD0iMjAyNS0w
 MS0xNyAxMDozNzo0NCIscmV2aXNpb249MV1dbHo0AFQAAABEEAAA8Ah7e2JtcD11c2VyZGF0YSgi
 aTE2IiwzMgMALyIwAQD--------------------7oSIpLHBhbl94PTAIANJ5PTAsdGlsZV9oPTE2
 CgBgdz0xNn19
 :: sfx/.info.pod
---[[pod,created="2026-05-26 21:14:32",modified="2026-06-24 06:47:05"]]
+--[[pod,created="2026-05-26 21:14:32",modified="2026-06-24 07:35:41"]]
 :: sfx/0.sfx
 b64$LS1bW3BvZCxjcmVhdGVkPSIyMDI1LTA3LTMxIDA4OjMwOjI4Iixtb2RpZmllZD0iMjAyNS0w
 Ny0zMSAwODozMDoyOCIscmV2aXNpb249MF1dbHo0AKAAAAALCgAA-zBweHUAAygAAAQABA9AEAIO
