@@ -588,6 +588,10 @@ keys_table["Space"]			= 0x20
 keys_table["Backspace"]		= 0x08
 keys_table["Tab"]				= 0x09
 keys_table["Escape"]			= 0x1B
+keys_table["Left"]				= 0x08 -- duplicate for backspace
+keys_table["Right"]			= 0x15
+keys_table["Down"]			= 0x0A -- NEWLINE
+keys_table["Up"]				= 0x0B
 
 local shift_table = {}
 -- we're following modern keyboard conventions for
